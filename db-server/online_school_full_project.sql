@@ -742,6 +742,113 @@ BEGIN
 END;
 GO
 
+
+CREATE OR ALTER PROCEDURE dbo.sp_CreateAssignment
+    @CourseID INT,
+    @Title NVARCHAR(150),
+    @DueDate DATETIME2(0),
+    @MaxScore DECIMAL(4,2)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Check if course exists and teacher (caller) is allowed (will be checked in API)
+    IF NOT EXISTS (SELECT 1 FROM dbo.Course WHERE CourseID = @CourseID AND IsDeleted = 0)
+        THROW 60001, 'Course not found.', 1;
+
+    IF @MaxScore <= 0 OR @MaxScore > 20
+        THROW 60002, 'MaxScore must be between 0.01 and 20.', 1;
+
+    INSERT INTO dbo.Assignment (CourseID, Title, DueDate, MaxScore)
+    VALUES (@CourseID, @Title, @DueDate, @MaxScore);
+
+    SELECT SCOPE_IDENTITY() AS AssignmentID, 'Assignment created successfully.' AS Message;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE dbo.sp_UpdateAssignment
+    @AssignmentID INT,
+    @Title NVARCHAR(150) = NULL,
+    @DueDate DATETIME2(0) = NULL,
+    @MaxScore DECIMAL(4,2) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.Assignment WHERE AssignmentID = @AssignmentID)
+        THROW 60011, 'Assignment not found.', 1;
+
+    IF @MaxScore IS NOT NULL AND (@MaxScore <= 0 OR @MaxScore > 20)
+        THROW 60012, 'MaxScore must be between 0.01 and 20.', 1;
+
+    UPDATE dbo.Assignment
+    SET
+        Title = ISNULL(@Title, Title),
+        DueDate = ISNULL(@DueDate, DueDate),
+        MaxScore = ISNULL(@MaxScore, MaxScore)
+    WHERE AssignmentID = @AssignmentID;
+
+    SELECT @AssignmentID AS AssignmentID, 'Assignment updated successfully.' AS Message;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE dbo.sp_DeleteAssignment
+    @AssignmentID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    -- Check if any submissions exist for this assignment
+    IF EXISTS (SELECT 1 FROM dbo.Submission WHERE AssignmentID = @AssignmentID)
+        THROW 60021, 'Cannot delete assignment because submissions already exist.', 1;
+
+    DELETE FROM dbo.Assignment WHERE AssignmentID = @AssignmentID;
+
+    SELECT @AssignmentID AS AssignmentID, 'Assignment deleted successfully.' AS Message;
+END;
+GO
+
+
+CREATE OR ALTER PROCEDURE dbo.sp_GetSubmissionsForGrading
+    @TeacherID INT,
+    @CourseID INT = NULL,
+    @AssignmentID INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Security: ensure teacher is the owner of the course(s)
+    SELECT
+        s.SubmissionID,
+        s.AssignmentID,
+        a.Title AS AssignmentTitle,
+        a.CourseID,
+        c.Title AS CourseTitle,
+        s.StudentID,
+        u.FullName AS StudentName,
+        u.Email AS StudentEmail,
+        s.SubmissionDate,
+        s.FileURL,
+        s.Score,
+        s.Feedback,
+        a.MaxScore,
+        a.DueDate
+    FROM dbo.Submission s
+    INNER JOIN dbo.Assignment a ON s.AssignmentID = a.AssignmentID
+    INNER JOIN dbo.Course c ON a.CourseID = c.CourseID
+    INNER JOIN dbo.[User] u ON s.StudentID = u.UserID
+    WHERE c.TeacherID = @TeacherID
+      AND (@CourseID IS NULL OR a.CourseID = @CourseID)
+      AND (@AssignmentID IS NULL OR s.AssignmentID = @AssignmentID)
+    ORDER BY a.CourseID, a.DueDate, s.SubmissionDate;
+END;
+GO
+
 -- =============================================================================
 -- 7. TRIGGERS
 -- =============================================================================

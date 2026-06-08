@@ -64,3 +64,14 @@ class CancelEnrollmentRequest(BaseModel):
 class UpdateUserStatusRequest(BaseModel):
     is_deleted: Optional[bool] = None
     student_status: Optional[str] = Field(None, pattern="^(Active|Inactive)$")
+
+class AssignmentCreateRequest(BaseModel):
+    course_id: int
+    title: str = Field(..., min_length=3, max_length=150)
+    due_date: datetime
+    max_score: float = Field(..., gt=0, le=20)
+
+class AssignmentUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=150)
+    due_date: Optional[datetime] = None
+    max_score: Optional[float] = Field(None, gt=0, le=20)

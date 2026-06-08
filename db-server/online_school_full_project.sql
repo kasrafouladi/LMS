@@ -1,6 +1,4 @@
 -- Online School Management System
--- SQL Server script generated from scratch
--- ASCII only
 
 USE master;
 GO

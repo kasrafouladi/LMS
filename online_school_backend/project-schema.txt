@@ -1,0 +1,24 @@
+online_school_backend/
+├── app/
+│   ├── __init__.py
+│   ├── main.py
+│   ├── database.py
+│   ├── auth.py
+│   ├── dependencies.py
+│   ├── routers/
+│   │   ├── __init__.py
+│   │   ├── auth.py
+│   │   ├── users.py
+│   │   ├── courses.py
+│   │   ├── enrollments.py
+│   │   ├── assignments.py
+│   │   ├── attendance.py
+│   │   ├── certificates.py
+│   │   ├── payments.py
+│   │   ├── reports.py
+│   │   └── views.py
+│   └── models/
+│       ├── __init__.py
+│       └── schemas.py
+├── requirements.txt
+└── .env

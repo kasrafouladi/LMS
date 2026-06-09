@@ -8,7 +8,7 @@ router = APIRouter(prefix="/courses", tags=["Courses"])
 
 @router.get("/")
 def list_courses(
-    status: Optional[str] = Query(None, regex="^(Upcoming|Active|Completed|Cancelled)$"),
+    status: Optional[str] = Query(None, pattern="^(Upcoming|Active|Completed|Cancelled)$"),
     teacher_id: Optional[int] = None,
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,

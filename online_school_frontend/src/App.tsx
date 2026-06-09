@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import type { PageKey } from './components/layout/Sidebar';
+import LoginPage from './pages/Login';
+
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Courses from './pages/Courses';
@@ -52,6 +54,8 @@ export default function App() {
       </div>
     );
   }
+
+  if (!user) return <LoginPage />;
 
   return <AppContent />;
 }

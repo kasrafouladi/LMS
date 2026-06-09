@@ -1454,4 +1454,408 @@ EXEC sp_GenerateMonthlyFinancialReport
     @Month = 1;
 GO
 
+USE OnlineSchoolDB;
+GO
+
+-- =====================================================
+-- 1. ثبت نام کاربر جدید (با نقش Student یا Teacher)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_RegisterUser
+    @FullName NVARCHAR(100),
+    @Email NVARCHAR(255),
+    @PasswordHash NVARCHAR(255),
+    @PhoneNumber NVARCHAR(20) = NULL,
+    @Role NVARCHAR(20),          -- 'Student' or 'Teacher'
+    @DateOfBirth DATE = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- بررسی یکتا بودن ایمیل
+        IF EXISTS (SELECT 1 FROM dbo.[User] WHERE Email = @Email AND IsDeleted = 0)
+            THROW 50050, 'Email already exists.', 1;
+
+        -- درج کاربر اصلی
+        INSERT INTO dbo.[User] (FullName, Email, PasswordHash, Role, PhoneNumber, RegistrationDate, IsDeleted)
+        VALUES (@FullName, @Email, @PasswordHash, @Role, @PhoneNumber, SYSDATETIME(), 0);
+
+        DECLARE @UserID INT = SCOPE_IDENTITY();
+
+        -- درج رکورد در جدول Student یا Teacher
+        IF @Role = 'Student'
+        BEGIN
+            INSERT INTO dbo.Student (StudentID, DateOfBirth, GPA, Status)
+            VALUES (@UserID, @DateOfBirth, 0, 'Active');
+        END
+        ELSE IF @Role = 'Teacher'
+        BEGIN
+            INSERT INTO dbo.Teacher (TeacherID, Expertise, HireDate, TotalIncome)
+            VALUES (@UserID, '', CAST(GETDATE() AS DATE), 0);
+        END
+
+        COMMIT TRANSACTION;
+
+        SELECT @UserID AS UserID, @Role AS Role;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END;
+GO
+
+-- =====================================================
+-- 2. به‌روزرسانی پروفایل کاربر (نام، تلفن، رمز)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_UpdateUserProfile
+    @UserID INT,
+    @FullName NVARCHAR(100) = NULL,
+    @PhoneNumber NVARCHAR(20) = NULL,
+    @PasswordHash NVARCHAR(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE dbo.[User]
+    SET
+        FullName = ISNULL(@FullName, FullName),
+        PhoneNumber = ISNULL(@PhoneNumber, PhoneNumber),
+        PasswordHash = ISNULL(@PasswordHash, PasswordHash)
+    WHERE UserID = @UserID AND IsDeleted = 0;
+
+    IF @@ROWCOUNT = 0
+        THROW 50051, 'User not found or deleted.', 1;
+
+    SELECT 'Profile updated' AS Message;
+END;
+GO
+
+-- =====================================================
+-- 3. دریافت لیست پرداخت‌های یک دانشجو
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetStudentPayments
+    @StudentID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        p.PaymentID,
+        p.CourseID,
+        c.Title AS CourseTitle,
+        p.Amount,
+        p.PaymentDate,
+        p.Status,
+        p.TransactionID
+    FROM dbo.Payment p
+    INNER JOIN dbo.Course c ON p.CourseID = c.CourseID
+    WHERE p.StudentID = @StudentID
+    ORDER BY p.PaymentDate DESC;
+END;
+GO
+
+-- =====================================================
+-- 4. دریافت نمرات دانشجو (دوره‌ها و تکالیف)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetStudentGrades
+    @StudentID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    -- نتیجه اول: لیست دوره‌ها با نمره نهایی
+    SELECT
+        c.CourseID,
+        c.Title AS CourseTitle,
+        e.FinalScore,
+        e.Status AS EnrollmentStatus
+    FROM dbo.Enrollment e
+    INNER JOIN dbo.Course c ON e.CourseID = c.CourseID
+    WHERE e.StudentID = @StudentID
+      AND e.FinalScore IS NOT NULL
+    ORDER BY c.Title;
+
+    -- نتیجه دوم: لیست تکالیف با نمرات
+    SELECT
+        a.AssignmentID,
+        a.Title AS AssignmentTitle,
+        a.CourseID,
+        c.Title AS CourseTitle,
+        s.Score,
+        s.Feedback,
+        s.SubmissionDate
+    FROM dbo.Submission s
+    INNER JOIN dbo.Assignment a ON s.AssignmentID = a.AssignmentID
+    INNER JOIN dbo.Course c ON a.CourseID = c.CourseID
+    WHERE s.StudentID = @StudentID
+      AND s.Score IS NOT NULL
+    ORDER BY a.DueDate DESC;
+END;
+GO
+
+-- =====================================================
+-- 5. دریافت لیست کاربران (ادمین)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetUsers
+    @Role NVARCHAR(20) = NULL,
+    @IncludeDeleted BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        u.UserID,
+        u.FullName,
+        u.Email,
+        u.Role,
+        u.PhoneNumber,
+        u.RegistrationDate,
+        u.IsDeleted,
+        s.Status AS StudentStatus,
+        s.GPA,
+        t.Expertise,
+        t.TotalIncome
+    FROM dbo.[User] u
+    LEFT JOIN dbo.Student s ON u.UserID = s.StudentID AND u.Role = 'Student'
+    LEFT JOIN dbo.Teacher t ON u.UserID = t.TeacherID AND u.Role = 'Teacher'
+    WHERE (@Role IS NULL OR u.Role = @Role)
+      AND (@IncludeDeleted = 1 OR u.IsDeleted = 0)
+    ORDER BY u.RegistrationDate DESC;
+END;
+GO
+
+-- =====================================================
+-- 6. تغییر وضعیت کاربر (ادمین)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_UpdateUserStatus
+    @UserID INT,
+    @IsDeleted BIT = NULL,
+    @StudentStatus NVARCHAR(20) = NULL   -- 'Active' or 'Inactive'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRANSACTION;
+
+    IF @IsDeleted IS NOT NULL
+    BEGIN
+        UPDATE dbo.[User]
+        SET IsDeleted = @IsDeleted
+        WHERE UserID = @UserID;
+    END
+
+    IF @StudentStatus IS NOT NULL
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM dbo.Student WHERE StudentID = @UserID)
+            THROW 50052, 'User is not a student.', 1;
+        UPDATE dbo.Student
+        SET Status = @StudentStatus
+        WHERE StudentID = @UserID;
+    END
+
+    COMMIT TRANSACTION;
+    SELECT 'User status updated' AS Message;
+END;
+GO
+
+-- =====================================================
+-- 7. دریافت لیست دوره‌ها با فیلتر
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetCourses
+    @Status NVARCHAR(20) = NULL,
+    @TeacherID INT = NULL,
+    @MinPrice DECIMAL(12,2) = NULL,
+    @MaxPrice DECIMAL(12,2) = NULL,
+    @SearchTitle NVARCHAR(150) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        c.CourseID,
+        c.Title,
+        c.Description,
+        c.Price,
+        c.StartDate,
+        c.EndDate,
+        c.Capacity,
+        c.Status,
+        c.TeacherID,
+        u.FullName AS TeacherName,
+        (SELECT COUNT(*) FROM dbo.Enrollment e WHERE e.CourseID = c.CourseID AND e.Status = 'Successful') AS EnrolledCount
+    FROM dbo.Course c
+    INNER JOIN dbo.[User] u ON c.TeacherID = u.UserID
+    WHERE c.IsDeleted = 0
+      AND (@Status IS NULL OR c.Status = @Status)
+      AND (@TeacherID IS NULL OR c.TeacherID = @TeacherID)
+      AND (@MinPrice IS NULL OR c.Price >= @MinPrice)
+      AND (@MaxPrice IS NULL OR c.Price <= @MaxPrice)
+      AND (@SearchTitle IS NULL OR c.Title LIKE '%' + @SearchTitle + '%')
+    ORDER BY c.StartDate;
+END;
+GO
+
+-- =====================================================
+-- 8. دریافت جزئیات یک دوره (اطلاعات، تکالیف، دانشجوها)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetCourseDetails
+    @CourseID INT,
+    @IncludeAssignments BIT = 1,
+    @IncludeStudents BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Result set 1: اطلاعات اصلی دوره
+    SELECT
+        c.CourseID,
+        c.Title,
+        c.Description,
+        c.Price,
+        c.StartDate,
+        c.EndDate,
+        c.Capacity,
+        c.Status,
+        c.TeacherID,
+        u.FullName AS TeacherName
+    FROM dbo.Course c
+    INNER JOIN dbo.[User] u ON c.TeacherID = u.UserID
+    WHERE c.CourseID = @CourseID AND c.IsDeleted = 0;
+
+    IF @IncludeAssignments = 1
+    BEGIN
+        SELECT
+            a.AssignmentID,
+            a.Title,
+            a.DueDate,
+            a.MaxScore,
+            (SELECT COUNT(*) FROM dbo.Submission s WHERE s.AssignmentID = a.AssignmentID) AS SubmissionCount
+        FROM dbo.Assignment a
+        WHERE a.CourseID = @CourseID
+        ORDER BY a.DueDate;
+    END
+
+    IF @IncludeStudents = 1
+    BEGIN
+        SELECT
+            s.StudentID,
+            u.FullName,
+            u.Email,
+            e.EnrollmentDate,
+            e.Status AS EnrollmentStatus,
+            e.FinalScore,
+            e.ProgressPercent
+        FROM dbo.Enrollment e
+        INNER JOIN dbo.Student s ON e.StudentID = s.StudentID
+        INNER JOIN dbo.[User] u ON s.StudentID = u.UserID
+        WHERE e.CourseID = @CourseID
+        ORDER BY e.EnrollmentDate;
+    END
+END;
+GO
+
+-- =====================================================
+-- 9. ایجاد دوره جدید (فقط استاد)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_CreateCourse
+    @TeacherID INT,
+    @Title NVARCHAR(150),
+    @Description NVARCHAR(MAX) = NULL,
+    @Price DECIMAL(12,2),
+    @StartDate DATETIME2(0),
+    @EndDate DATETIME2(0),
+    @Capacity INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS (SELECT 1 FROM dbo.Teacher WHERE TeacherID = @TeacherID)
+        THROW 50060, 'Teacher not found.', 1;
+
+    INSERT INTO dbo.Course (TeacherID, Title, Description, Price, StartDate, EndDate, Capacity, Status, IsDeleted)
+    VALUES (@TeacherID, @Title, @Description, @Price, @StartDate, @EndDate, @Capacity, 'Upcoming', 0);
+
+    SELECT SCOPE_IDENTITY() AS CourseID, 'Course created' AS Message;
+END;
+GO
+
+-- =====================================================
+-- 10. به‌روزرسانی دوره
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_UpdateCourse
+    @CourseID INT,
+    @Title NVARCHAR(150) = NULL,
+    @Description NVARCHAR(MAX) = NULL,
+    @Price DECIMAL(12,2) = NULL,
+    @StartDate DATETIME2(0) = NULL,
+    @EndDate DATETIME2(0) = NULL,
+    @Capacity INT = NULL,
+    @Status NVARCHAR(20) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE dbo.Course
+    SET
+        Title = ISNULL(@Title, Title),
+        Description = ISNULL(@Description, Description),
+        Price = ISNULL(@Price, Price),
+        StartDate = ISNULL(@StartDate, StartDate),
+        EndDate = ISNULL(@EndDate, EndDate),
+        Capacity = ISNULL(@Capacity, Capacity),
+        Status = ISNULL(@Status, Status)
+    WHERE CourseID = @CourseID AND IsDeleted = 0;
+
+    IF @@ROWCOUNT = 0
+        THROW 50061, 'Course not found or deleted.', 1;
+
+    SELECT 'Course updated' AS Message;
+END;
+GO
+
+-- =====================================================
+-- 11. حذف نرم دوره
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_DeleteCourse
+    @CourseID INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    UPDATE dbo.Course
+    SET IsDeleted = 1
+    WHERE CourseID = @CourseID;
+
+    SELECT 'Course deleted (soft)' AS Message;
+END;
+GO
+
+-- =====================================================
+-- 12. دریافت تکالیف یک دوره (به همراه وضعیت دانشجو)
+-- =====================================================
+CREATE OR ALTER PROCEDURE sp_GetAssignmentsByCourse
+    @CourseID INT,
+    @StudentID INT = NULL   -- اگر دانشجو وارد شده باشد، وضعیت ارسال و نمره را هم نشان بده
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SELECT
+        a.AssignmentID,
+        a.Title,
+        a.DueDate,
+        a.MaxScore,
+        s.SubmissionID,
+        s.SubmissionDate,
+        s.Score,
+        s.Feedback,
+        CASE
+            WHEN s.SubmissionID IS NOT NULL THEN 'Submitted'
+            WHEN GETDATE() > a.DueDate THEN 'Missed'
+            ELSE 'Pending'
+        END AS SubmissionStatus
+    FROM dbo.Assignment a
+    LEFT JOIN dbo.Submission s ON a.AssignmentID = s.AssignmentID AND (@StudentID IS NULL OR s.StudentID = @StudentID)
+    WHERE a.CourseID = @CourseID
+    ORDER BY a.DueDate;
+END;
+GO
+
+
 -- End of script.

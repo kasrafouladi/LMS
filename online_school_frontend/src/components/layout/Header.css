@@ -1,0 +1,131 @@
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: var(--sidebar-width);
+  height: var(--header-height);
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  z-index: var(--z-header);
+  box-shadow: var(--shadow-xs);
+  transition: right var(--transition-slow);
+}
+
+.header-right {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.header-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--gray-900);
+  line-height: 1.2;
+}
+
+.header-date {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.header-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.header-search-icon {
+  position: absolute;
+  right: 0.75rem;
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+
+.header-search-input {
+  padding: 0.4375rem 2.25rem 0.4375rem 0.875rem;
+  border: 1.5px solid var(--border-color);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  color: var(--gray-800);
+  background: var(--gray-50);
+  width: 200px;
+  transition: all var(--transition-fast);
+  direction: rtl;
+}
+
+.header-search-input:focus {
+  outline: none;
+  border-color: var(--brand-400);
+  background: var(--bg-card);
+  box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+  width: 240px;
+}
+
+.header-search-input::placeholder { color: var(--gray-400); }
+
+.header-icon-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--gray-100);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  transition: background var(--transition-fast);
+  color: var(--gray-600);
+}
+
+.header-icon-btn:hover { background: var(--gray-200); }
+
+.header-notif-dot {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  width: 7px;
+  height: 7px;
+  background: var(--color-danger);
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--bg-header);
+}
+
+.header-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: var(--brand-600);
+  color: #fff;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: box-shadow var(--transition-fast);
+}
+
+.header-avatar:hover {
+  box-shadow: 0 0 0 3px var(--brand-200);
+}
+
+.header-user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}

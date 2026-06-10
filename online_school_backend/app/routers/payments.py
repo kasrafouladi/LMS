@@ -12,8 +12,8 @@ def get_my_payments(current_user: dict = Depends(role_required(["Student", "Admi
     user_role = current_user["role"]
 
     if user_role == "Student":
-        payments = call_stored_procedure("sp_GetStudentPayments", {"@StudentID": user_id})
-        return payments
+        result_sets = call_stored_procedure("sp_GetStudentPayments", {"@StudentID": user_id})
+        return result_sets[0] if result_sets else []
     elif user_role == "Admin":
         payments = execute_query("""
             SELECT p.PaymentID, p.StudentID, u.FullName AS StudentName,

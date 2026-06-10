@@ -29,10 +29,12 @@ def login(req: LoginRequest):
 
 @router.post("/register")
 def register(req: UserRegisterRequest):
+    # Only allow Student or Teacher roles
     if req.role not in ["Student", "Teacher"]:
         raise HTTPException(status_code=400, detail="Invalid role for registration")
+    
     hashed = get_password_hash(req.password)
-    result = call_stored_procedure("sp_RegisterUser", {
+    result_sets = call_stored_procedure("sp_RegisterUser", {
         "@FullName": req.full_name,
         "@Email": req.email,
         "@PasswordHash": hashed,
@@ -40,8 +42,14 @@ def register(req: UserRegisterRequest):
         "@Role": req.role,
         "@DateOfBirth": req.date_of_birth
     })
-    if result:
-        return {"message": "User registered successfully", "user_id": result[0]["UserID"], "role": result[0]["Role"]}
+    # result_sets is a list of result sets. The procedure returns one result set (one row).
+    if result_sets and len(result_sets) > 0 and len(result_sets[0]) > 0:
+        user_data = result_sets[0][0]   # first row of first result set
+        return {
+            "message": "User registered successfully",
+            "user_id": user_data["UserID"],
+            "role": user_data["Role"]
+        }
     raise HTTPException(status_code=500, detail="Registration failed")
 
 @router.get("/me")

@@ -441,7 +441,7 @@ BEGIN
 
         SELECT LAST_INSERT_ID() AS SubmissionID, 'Submission stored. Waiting for grading.' AS Message;
     END IF;
-END
+END //
 
 CREATE PROCEDURE sp_GradeSubmission(
     IN p_SubmissionID INT,

@@ -1,7 +1,27 @@
 from fastapi import FastAPI
 from app.routers import auth, users, courses, enrollments, assignments, attendance, certificates, payments, reports, views, submissions
 
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+
 app = FastAPI(title="Online School API", version="2.0.0")
+
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # یا آدرس دقیق frontend
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(users.router)

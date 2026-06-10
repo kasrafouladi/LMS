@@ -9,7 +9,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/login")
 def login(req: LoginRequest):
     users = execute_query(
-        "SELECT UserID, FullName, Email, Role, PasswordHash FROM [User] WHERE Email = ? AND IsDeleted = 0",
+        "SELECT UserID, FullName, Email, Role, PasswordHash FROM `User` WHERE Email = %s AND IsDeleted = 0",
         {"email": req.email}
     )
     if not users:
@@ -29,7 +29,8 @@ def login(req: LoginRequest):
 
 @router.post("/register")
 def register(req: UserRegisterRequest):
-    # Call stored procedure to register user
+    if req.role not in ["Student", "Teacher"]:
+        raise HTTPException(status_code=400, detail="Invalid role for registration")
     hashed = get_password_hash(req.password)
     result = call_stored_procedure("sp_RegisterUser", {
         "@FullName": req.full_name,

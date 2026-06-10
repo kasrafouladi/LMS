@@ -1,71 +1,101 @@
-import pyodbc
+import mysql.connector
+import mysql.connector.pooling
 import os
 from dotenv import load_dotenv
 from fastapi import HTTPException
+import logging
 
 load_dotenv()
 
-def get_connection_string():
-    if os.getenv("DB_TRUSTED_CONNECTION", "").lower() == "yes":
-        return (
-            f"DRIVER={{{os.getenv('DB_DRIVER')}}};"
-            f"SERVER={os.getenv('DB_SERVER')};"
-            f"DATABASE={os.getenv('DB_NAME')};"
-            "Trusted_Connection=yes;"
-            "TrustServerCertificate=yes;"
-        )
-    else:
-        return (
-            f"DRIVER={{{os.getenv('DB_DRIVER')}}};"
-            f"SERVER={os.getenv('DB_SERVER')};"
-            f"DATABASE={os.getenv('DB_NAME')};"
-            f"UID={os.getenv('DB_USER')};"
-            f"PWD={os.getenv('DB_PASSWORD')};"
-            "TrustServerCertificate=yes;"
-        )
+# تنظیم لاگینگ ساده
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-def get_db_connection():
+# Connection Pool
+pool = None
+
+def get_pool():
+    global pool
+    if pool is None:
+        try:
+            pool = mysql.connector.pooling.MySQLConnectionPool(
+                pool_name="mypool",
+                pool_size=5,
+                pool_reset_session=True,
+                host=os.getenv("DB_HOST", "localhost"),
+                port=int(os.getenv("DB_PORT", "3306")),
+                user=os.getenv("DB_USER", "root"),
+                password=os.getenv("DB_PASSWORD", ""),
+                database=os.getenv("DB_NAME", "OnlineSchoolDB"),
+                use_pure=True
+            )
+            logger.info("Connection pool created successfully")
+        except Exception as e:
+            logger.error(f"Failed to create connection pool: {e}")
+            raise
+    return pool
+
+def get_connection():
     try:
-        conn = pyodbc.connect(get_connection_string(), timeout=5)
-        return conn
+        pool = get_pool()
+        return pool.get_connection()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.error(f"Database connection error: {e}")
+        raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
 
 def call_stored_procedure(proc_name: str, params: dict = None, return_single: bool = False):
-    """Execute a stored procedure and return list of dicts."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    """
+    Execute a stored procedure and return a list of result sets.
+    Each result set is a list of dicts.
+    """
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    all_results = []  # list of result sets (each result set is a list of rows)
+    try:
         if params:
-            placeholders = ",".join(["?"] * len(params))
-            sql = f"SET NOCOUNT ON; EXEC {proc_name} {placeholders};"
-            cursor.execute(sql, tuple(params.values()))
+            placeholders = ",".join(["%s"] * len(params))
+            sql = f"CALL {proc_name}({placeholders})"
+            results_gen = cursor.execute(sql, tuple(params.values()), multi=True)
         else:
-            cursor.execute(f"SET NOCOUNT ON; EXEC {proc_name};")
-        
-        # Fetch all result sets (multiple SELECTs)
-        results = []
-        while True:
-            if cursor.description:
-                columns = [col[0] for col in cursor.description]
-                rows = cursor.fetchall()
-                for row in rows:
-                    results.append(dict(zip(columns, row)))
-            if not cursor.nextset():
-                break
-        if return_single and results:
-            return results[0]
-        return results
+            results_gen = cursor.execute(f"CALL {proc_name}()", multi=True)
+
+        for result in results_gen:
+            if result.with_rows:
+                rows = result.fetchall()
+                all_results.append(rows)   # هر result set به عنوان یک لیست مجزا اضافه می‌شود
+            else:
+                # برای دستورات UPDATE/INSERT که ردیف ندارند، یک لیست خالی اضافه می‌کنیم
+                all_results.append([])
+
+        if return_single and all_results and all_results[0]:
+            return all_results[0][0]   # اولین ردیف از اولین result set
+        return all_results
+    except mysql.connector.Error as err:
+        logger.error(f"Procedure error: {err}")
+        raise HTTPException(status_code=500, detail=f"Procedure error: {err}")
+    finally:
+        cursor.close()
+        conn.close()
 
 def execute_query(query: str, params: dict = None):
-    """Execute a raw SQL query (for simple SELECTs)."""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
+    """
+    Execute a raw SQL query (for simple SELECTs).
+    Use %s placeholders. Returns list of dicts.
+    """
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
         if params:
-            cursor.execute(query, tuple(params.values()))
+            cursor.execute(query, list(params.values()))
         else:
             cursor.execute(query)
+        
         if cursor.description:
-            columns = [col[0] for col in cursor.description]
-            rows = cursor.fetchall()
-            return [dict(zip(columns, row)) for row in rows]
+            return cursor.fetchall()
         return []
+    except mysql.connector.Error as err:
+        logger.error(f"Query error: {err}")
+        raise HTTPException(status_code=500, detail=f"Query error: {err}")
+    finally:
+        cursor.close()
+        conn.close()

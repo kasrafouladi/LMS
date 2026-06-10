@@ -6,16 +6,8 @@ from app.database import call_stored_procedure, execute_query
 
 router = APIRouter(prefix="/payments", tags=["Payments"])
 
-
 @router.get("/")
-def get_my_payments(
-    current_user: dict = Depends(role_required(["Student", "Admin"]))
-):
-    """
-    دریافت لیست پرداخت‌ها.
-    - دانشجو: فقط پرداخت‌های خود را می‌بیند.
-    - ادمین: تمام پرداخت‌ها را می‌بیند (بدون فیلتر اضافی – در صورت نیاز فیلترهای پیشرفته در endpoint جداگانه).
-    """
+def get_my_payments(current_user: dict = Depends(role_required(["Student", "Admin"]))):
     user_id = int(current_user["sub"])
     user_role = current_user["role"]
 
@@ -23,18 +15,16 @@ def get_my_payments(
         payments = call_stored_procedure("sp_GetStudentPayments", {"@StudentID": user_id})
         return payments
     elif user_role == "Admin":
-        # ادمین می‌تواند همه پرداخت‌ها را بدون فیلتر ببیند
         payments = execute_query("""
             SELECT p.PaymentID, p.StudentID, u.FullName AS StudentName,
                    p.CourseID, c.Title AS CourseTitle,
                    p.Amount, p.PaymentDate, p.Status, p.TransactionID
-            FROM dbo.Payment p
-            INNER JOIN dbo.[User] u ON p.StudentID = u.UserID
-            INNER JOIN dbo.Course c ON p.CourseID = c.CourseID
+            FROM Payment p
+            INNER JOIN `User` u ON p.StudentID = u.UserID
+            INNER JOIN Course c ON p.CourseID = c.CourseID
             ORDER BY p.PaymentDate DESC
         """)
         return payments
-
 
 @router.get("/admin/all")
 def list_all_payments_admin(
@@ -45,36 +35,33 @@ def list_all_payments_admin(
     end_date: Optional[date] = Query(None),
     current_user: dict = Depends(role_required(["Admin"]))
 ):
-    """
-    ادمین: دریافت همه پرداخت‌ها با فیلترهای پیشرفته.
-    """
     query = """
         SELECT p.PaymentID, p.StudentID, u.FullName AS StudentName,
                p.CourseID, c.Title AS CourseTitle,
                p.Amount, p.PaymentDate, p.Status, p.TransactionID
-        FROM dbo.Payment p
-        INNER JOIN dbo.[User] u ON p.StudentID = u.UserID
-        INNER JOIN dbo.Course c ON p.CourseID = c.CourseID
+        FROM Payment p
+        INNER JOIN `User` u ON p.StudentID = u.UserID
+        INNER JOIN Course c ON p.CourseID = c.CourseID
         WHERE 1=1
     """
     params = {}
     conditions = []
 
     if student_id:
-        conditions.append("p.StudentID = @StudentID")
-        params["@StudentID"] = student_id
+        conditions.append("p.StudentID = %s")
+        params["StudentID"] = student_id
     if course_id:
-        conditions.append("p.CourseID = @CourseID")
-        params["@CourseID"] = course_id
+        conditions.append("p.CourseID = %s")
+        params["CourseID"] = course_id
     if status:
-        conditions.append("p.Status = @Status")
-        params["@Status"] = status
+        conditions.append("p.Status = %s")
+        params["Status"] = status
     if start_date:
-        conditions.append("p.PaymentDate >= @StartDate")
-        params["@StartDate"] = start_date
+        conditions.append("p.PaymentDate >= %s")
+        params["StartDate"] = start_date
     if end_date:
-        conditions.append("p.PaymentDate <= @EndDate")
-        params["@EndDate"] = end_date
+        conditions.append("p.PaymentDate <= %s")
+        params["EndDate"] = end_date
 
     if conditions:
         query += " AND " + " AND ".join(conditions)
@@ -84,17 +71,8 @@ def list_all_payments_admin(
     payments = execute_query(query, params)
     return payments
 
-
 @router.get("/{payment_id}")
-def get_payment_detail(
-    payment_id: int,
-    current_user: dict = Depends(role_required(["Student", "Admin"]))
-):
-    """
-    مشاهده جزئیات یک پرداخت خاص.
-    - دانشجو: فقط در صورتی که مالک آن باشد.
-    - ادمین: هر پرداختی را می‌تواند ببیند.
-    """
+def get_payment_detail(payment_id: int, current_user: dict = Depends(role_required(["Student", "Admin"]))):
     user_id = int(current_user["sub"])
     user_role = current_user["role"]
 
@@ -103,12 +81,12 @@ def get_payment_detail(
         SELECT p.PaymentID, p.StudentID, u.FullName AS StudentName,
                p.CourseID, c.Title AS CourseTitle,
                p.Amount, p.PaymentDate, p.Status, p.TransactionID
-        FROM dbo.Payment p
-        INNER JOIN dbo.[User] u ON p.StudentID = u.UserID
-        INNER JOIN dbo.Course c ON p.CourseID = c.CourseID
-        WHERE p.PaymentID = @PaymentID
+        FROM Payment p
+        INNER JOIN `User` u ON p.StudentID = u.UserID
+        INNER JOIN Course c ON p.CourseID = c.CourseID
+        WHERE p.PaymentID = %s
         """,
-        {"@PaymentID": payment_id}
+        {"PaymentID": payment_id}
     )
 
     if not payment:
@@ -121,22 +99,12 @@ def get_payment_detail(
 
     return payment
 
-
 @router.post("/retry/{payment_id}")
-def retry_failed_payment(
-    payment_id: int,
-    current_user: dict = Depends(role_required(["Student"]))
-):
-    """
-    تلاش مجدد برای پرداخت ناموفق (فقط دانشجو برای پرداخت خودش).
-    توجه: این فقط یک نمونه ساده است. در عمل باید با درگاه پرداخت ارتباط برقرار کنید.
-    """
+def retry_failed_payment(payment_id: int, current_user: dict = Depends(role_required(["Student"]))):
     user_id = int(current_user["sub"])
-
-    # بررسی وجود پرداخت و تعلق آن به کاربر
     payment = execute_query(
-        "SELECT StudentID, Status, Amount, CourseID FROM dbo.Payment WHERE PaymentID = @PaymentID",
-        {"@PaymentID": payment_id}
+        "SELECT StudentID, Status, Amount, CourseID FROM Payment WHERE PaymentID = %s",
+        {"PaymentID": payment_id}
     )
     if not payment:
         raise HTTPException(status_code=404, detail="Payment not found")
@@ -147,22 +115,15 @@ def retry_failed_payment(
     if payment["Status"] != "Failed":
         raise HTTPException(status_code=400, detail="Only failed payments can be retried")
 
-    # شبیه‌سازی درخواست جدید به درگاه پرداخت (در اینجا فقط وضعیت را به Pending تغییر می‌دهیم)
     execute_query(
-        "UPDATE dbo.Payment SET Status = 'Pending' WHERE PaymentID = @PaymentID",
-        {"@PaymentID": payment_id}
+        "UPDATE Payment SET Status = 'Pending' WHERE PaymentID = %s",
+        {"PaymentID": payment_id}
     )
 
     return {"message": "Payment retry initiated. Please complete the payment process.", "payment_id": payment_id}
 
-
 @router.get("/admin/summary")
-def payment_summary(
-    current_user: dict = Depends(role_required(["Admin"]))
-):
-    """
-    خلاصه آماری از وضعیت پرداخت‌ها (فقط ادمین).
-    """
+def payment_summary(current_user: dict = Depends(role_required(["Admin"]))):
     summary = execute_query("""
         SELECT
             SUM(CASE WHEN Status = 'Successful' THEN Amount ELSE 0 END) AS TotalSuccessful,
@@ -171,6 +132,6 @@ def payment_summary(
             COUNT(CASE WHEN Status = 'Failed' THEN 1 END) AS FailedCount,
             COUNT(CASE WHEN Status = 'Pending' THEN 1 END) AS PendingCount,
             COUNT(CASE WHEN Status = 'Refunded' THEN 1 END) AS RefundedCount
-        FROM dbo.Payment
+        FROM Payment
     """)
     return summary[0] if summary else {}

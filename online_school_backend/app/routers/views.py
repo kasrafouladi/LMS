@@ -6,10 +6,9 @@ router = APIRouter(prefix="/views", tags=["Views"])
 
 @router.get("/student-transcript")
 def student_transcript(current_user: dict = Depends(role_required(["Admin", "Teacher", "Student"]))):
-    # Student can only see their own transcript. We'll filter in code.
     if current_user["role"] == "Student":
         user_id = int(current_user["sub"])
-        data = execute_query("SELECT * FROM vw_StudentTranscript WHERE StudentID = ?", {"id": user_id})
+        data = execute_query("SELECT * FROM vw_StudentTranscript WHERE StudentID = %s", {"id": user_id})
     else:
         data = execute_query("SELECT * FROM vw_StudentTranscript")
     return data
@@ -18,7 +17,7 @@ def student_transcript(current_user: dict = Depends(role_required(["Admin", "Tea
 def teacher_dashboard(current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
     if current_user["role"] == "Teacher":
         user_id = int(current_user["sub"])
-        data = execute_query("SELECT * FROM vw_TeacherDashboard WHERE TeacherID = ?", {"id": user_id})
+        data = execute_query("SELECT * FROM vw_TeacherDashboard WHERE TeacherID = %s", {"id": user_id})
     else:
         data = execute_query("SELECT * FROM vw_TeacherDashboard")
     return data
@@ -35,5 +34,5 @@ def financial_summary(current_user: dict = Depends(role_required(["Admin"]))):
 def student_certificates(current_user: dict = Depends(role_required(["Student", "Admin"]))):
     if current_user["role"] == "Student":
         user_id = int(current_user["sub"])
-        return execute_query("SELECT * FROM vw_StudentCertificates WHERE StudentID = ?", {"id": user_id})
+        return execute_query("SELECT * FROM vw_StudentCertificates WHERE StudentID = %s", {"id": user_id})
     return execute_query("SELECT * FROM vw_StudentCertificates")

@@ -13,7 +13,7 @@ def list_courses(
     min_price: Optional[float] = None,
     max_price: Optional[float] = None,
     search: Optional[str] = None,
-    current_user: dict = Depends(optional_user)  # even non-logged in can see
+    current_user: dict = Depends(optional_user)
 ):
     courses = call_stored_procedure("sp_GetCourses", {
         "@Status": status,
@@ -22,42 +22,49 @@ def list_courses(
         "@MaxPrice": max_price,
         "@SearchTitle": search
     })
-    return courses
+    # courses اکنون لیستی از result set هاست. اولین result set را برمی‌گردانیم
+    if courses and len(courses) > 0:
+        return courses[0]
+    return []
 
 @router.get("/{course_id}")
 def get_course_details(
     course_id: int,
     current_user: dict = Depends(optional_user)
 ):
-    # Determine if we should show students (only for teacher/admin of that course or admin)
     include_students = 0
     if current_user and current_user.get("role") in ["Admin", "Teacher"]:
-        # For teacher, only if they own the course
         if current_user["role"] == "Teacher":
-            course_owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = ?", {"id": course_id})
+            course_owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": course_id})
             if course_owner and course_owner[0]["TeacherID"] == int(current_user["sub"]):
                 include_students = 1
         else:
             include_students = 1
-    details = call_stored_procedure("sp_GetCourseDetails", {
+    result_sets = call_stored_procedure("sp_GetCourseDetails", {
         "@CourseID": course_id,
         "@IncludeAssignments": 1,
         "@IncludeStudents": include_students
     })
-    if not details:
+    if not result_sets or len(result_sets) == 0 or not result_sets[0]:
         raise HTTPException(404, "Course not found")
-    # details is a list of multiple result sets: first course info, then assignments, then students (if requested)
+    
+    # result_sets[0] = course info
+    # result_sets[1] = assignments
+    # result_sets[2] = students (if requested)
+    course = result_sets[0][0] if result_sets[0] else None
+    assignments = result_sets[1] if len(result_sets) > 1 else []
+    students = result_sets[2] if len(result_sets) > 2 else []
+    
     response = {
-        "course": details[0] if details else None,
-        "assignments": details[1] if len(details) > 1 else [],
-        "students": details[2] if len(details) > 2 else []
+        "course": course,
+        "assignments": assignments,
+        "students": students
     }
     return response
 
 @router.post("/")
 def create_course(req: CourseCreateRequest, current_user: dict = Depends(role_required(["Teacher"]))):
     teacher_id = int(current_user["sub"])
-    # Ensure user is indeed a teacher
     result = call_stored_procedure("sp_CreateCourse", {
         "@TeacherID": teacher_id,
         "@Title": req.title,
@@ -67,13 +74,15 @@ def create_course(req: CourseCreateRequest, current_user: dict = Depends(role_re
         "@EndDate": req.end_date,
         "@Capacity": req.capacity
     })
-    return result[0] if result else {"message": "Course created"}
+    # result[0] اولین result set است
+    if result and len(result) > 0 and result[0]:
+        return result[0][0]
+    return {"message": "Course created"}
 
 @router.put("/{course_id}")
 def update_course(course_id: int, req: CourseUpdateRequest, current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
-    # Check permission: teacher can only update own course
     if current_user["role"] == "Teacher":
-        owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = ?", {"id": course_id})
+        owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": course_id})
         if not owner or owner[0]["TeacherID"] != int(current_user["sub"]):
             raise HTTPException(403, "You can only update your own courses")
     result = call_stored_procedure("sp_UpdateCourse", {
@@ -91,7 +100,7 @@ def update_course(course_id: int, req: CourseUpdateRequest, current_user: dict =
 @router.delete("/{course_id}")
 def delete_course(course_id: int, current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
     if current_user["role"] == "Teacher":
-        owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = ?", {"id": course_id})
+        owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": course_id})
         if not owner or owner[0]["TeacherID"] != int(current_user["sub"]):
             raise HTTPException(403, "You can only delete your own courses")
     result = call_stored_procedure("sp_DeleteCourse", {"@CourseID": course_id})
@@ -106,4 +115,6 @@ def get_course_assignments(course_id: int, current_user: dict = Depends(get_curr
         "@CourseID": course_id,
         "@StudentID": student_id
     })
-    return assignments
+    if assignments and len(assignments) > 0:
+        return assignments[0]
+    return []

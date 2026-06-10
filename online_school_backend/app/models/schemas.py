@@ -11,7 +11,7 @@ class UserRegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=6)
     phone_number: Optional[str] = None
-    role: str = "Student"  # Student or Teacher (Teacher needs admin approval later)
+    role: str = "Student"
     date_of_birth: Optional[date] = None
 
 class UpdateProfileRequest(BaseModel):
@@ -37,15 +37,15 @@ class CourseUpdateRequest(BaseModel):
     status: Optional[str] = None
 
 class EnrollRequest(BaseModel):
-    student_id: int
     course_id: int
     amount: float
     transaction_id: Optional[str] = None
+    # student_id حذف شد – از توکن گرفته می‌شود
 
 class SubmitAssignmentRequest(BaseModel):
     assignment_id: int
-    student_id: int
     file_url: str = Field(..., max_length=500)
+    # student_id حذف شد – از توکن گرفته می‌شود
 
 class GradeSubmissionRequest(BaseModel):
     submission_id: int
@@ -53,7 +53,7 @@ class GradeSubmissionRequest(BaseModel):
     feedback: Optional[str] = None
 
 class AttendanceRequest(BaseModel):
-    student_id: int
+    student_id: int  # استاد برای دانشجوی دیگر ثبت می‌کند – باید ارسال شود
     course_id: int
     session_date: date
     status: str = Field(..., pattern="^(Present|Absent)$")

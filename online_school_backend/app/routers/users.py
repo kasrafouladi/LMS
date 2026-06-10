@@ -9,7 +9,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 @router.get("/profile")
 def get_profile(current_user: dict = Depends(get_current_user)):
     user_id = int(current_user["sub"])
-    users = execute_query("SELECT UserID, FullName, Email, Role, PhoneNumber, RegistrationDate FROM [User] WHERE UserID = ?", {"id": user_id})
+    users = execute_query("SELECT UserID, FullName, Email, Role, PhoneNumber, RegistrationDate FROM `User` WHERE UserID = %s", {"id": user_id})
     if not users:
         raise HTTPException(404, "User not found")
     return users[0]
@@ -29,22 +29,27 @@ def update_profile(req: UpdateProfileRequest, current_user: dict = Depends(get_c
 @router.get("/payments")
 def get_my_payments(current_user: dict = Depends(get_current_user)):
     user_id = int(current_user["sub"])
-    # only students have payments, but we check role in SP
     payments = call_stored_procedure("sp_GetStudentPayments", {"@StudentID": user_id})
-    return payments
+    # payments اکنون یک لیست از result set هاست. اولین (و تنها) result set را برمی‌گردانیم
+    if payments and len(payments) > 0:
+        return payments[0]
+    return []
 
 @router.get("/grades")
 def get_my_grades(current_user: dict = Depends(role_required(["Student"]))):
     user_id = int(current_user["sub"])
-    grades = call_stored_procedure("sp_GetStudentGrades", {"@StudentID": user_id})
-    # The procedure returns two result sets; we combine them
-    return {"courses": grades[:len(grades)//2] if grades else [], "assignments": grades[len(grades)//2:] if grades else []}
+    result_sets = call_stored_procedure("sp_GetStudentGrades", {"@StudentID": user_id})
+    # result_sets[0] = list of courses, result_sets[1] = list of assignments
+    courses = result_sets[0] if len(result_sets) > 0 else []
+    assignments = result_sets[1] if len(result_sets) > 1 else []
+    return {"courses": courses, "assignments": assignments}
 
-# Admin endpoints
 @router.get("/admin/users")
 def list_users(role: str = None, include_deleted: bool = False, current_user: dict = Depends(role_required(["Admin"]))):
     users = call_stored_procedure("sp_GetUsers", {"@Role": role, "@IncludeDeleted": include_deleted})
-    return users
+    if users and len(users) > 0:
+        return users[0]
+    return []
 
 @router.put("/admin/users/{user_id}/status")
 def update_user_status(user_id: int, req: UpdateUserStatusRequest, current_user: dict = Depends(role_required(["Admin"]))):

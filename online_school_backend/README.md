@@ -1,102 +1,93 @@
 # Online School Management System - Backend API
 
-یک سیستم مدیریت مدرسه آنلاین با FastAPI و SQL Server
+An online school management system with FastAPI and MySQL.
 
-## پیش‌نیازها
+## Prerequisites
 
-- Python 3.10 یا بالاتر
-- SQL Server 2022 (یا Docker)
-- ODBC Driver 18 for SQL Server
+- Python 3.10 or higher
+- MySQL Server 8.0 (or Docker)
+- MySQL Connector (installed via `requirements.txt`)
 
-## نصب و راه‌اندازی
+## Installation & Setup
 
-### 1. کلون کردن پروژه
+### 1. Clone the project
 
 ```bash
 git clone https://github.com/kasrafouladi/LMS
 cd LMS/online_school_backend
 ```
 
-### 2. ایجاد محیط مجازی (توصیه شده)
+### 2. Create a virtual environment (recommended)
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # در لینوکس/Mac
-# یا
-venv\Scripts\activate  # در ویندوز
+source venv/bin/activate  # Linux/Mac
+# or
+venv\Scripts\activate     # Windows
 ```
 
-### 3. نصب وابستگی‌ها
+### 3. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. نصب SQL Server و درایورها
+### 4. Install MySQL Server
 
-#### در لینوکس (اوبونتو):
+#### On Ubuntu / Debian
 
 ```bash
-# نصب unixODBC
 sudo apt update
-sudo apt install -y unixodbc unixodbc-dev
-
-# نصب درایور Microsoft ODBC
-curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
-curl https://packages.microsoft.com/config/ubuntu/22.04/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-sudo apt update
-sudo ACCEPT_EULA=Y apt install -y msodbcsql18
+sudo apt install -y mysql-server
+sudo systemctl start mysql
+sudo mysql_secure_installation   # set root password
 ```
 
-#### با Docker:
+#### Using Docker
 
 ```bash
-cd ../online_school_db
-sudo docker run -e "ACCEPT_EULA=Y" \
-  -e "MSSQL_SA_PASSWORD=YourStrongPassword123" \
-  -e "MSSQL_PID=Developer" \
-  -p 1433:1433 \
-  --name sqlserver_lms \
-  -d mcr.microsoft.com/mssql/server:2022-latest
+sudo docker run --name mysql_lms -e MYSQL_ROOT_PASSWORD=YourStrongPassword123 -p 1433:3306 -d mysql:8.0
 ```
 
-### 5. ایجاد دیتابیس
+### 5. Create the database
 
-فایل SQL را اجرا کنید:
+Run the provided SQL script (the MySQL version you already have):
 
 ```bash
-sqlcmd -S localhost -U SA -P 'YourStrong!Password123' -i online_school_full_project.sql
+mysql -h localhost -P 1433 -u root -p < online_school.sql
 ```
 
-### 6. تنظیم فایل محیطی
+> If you set a different port or password, adjust accordingly.
 
-فایل `.env` را با محتوای زیر ایجاد کنید:
+### 6. Environment configuration
+
+Create a `.env` file in the project root with the following content:
 
 ```env
-DB_DRIVER=ODBC Driver 18 for SQL Server
-DB_SERVER=localhost
+DB_HOST=localhost
+DB_PORT=1433
+DB_USER=root
+DB_PASSWORD=YourMySQLPassword
 DB_NAME=OnlineSchoolDB
-DB_TRUSTED_CONNECTION=no
-DB_USER=sa
-DB_PASSWORD=YourStrongPassword123
+
 JWT_SECRET_KEY=YourSuperSecretKeyAtLeast32CharactersLong
 JWT_ALGORITHM=HS256
 JWT_EXPIRE_MINUTES=720
 ```
 
-### 7. اجرای سرور
+### 7. Run the server
 
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-## ساختار پروژه
+## Project Structure
 
 ```
 online_school_backend/
 ├── app/
 │   ├── __init__.py
-│   ├── database.py
+│   ├── database.py          # MySQL connector
 │   ├── auth.py
 │   ├── dependencies.py
 │   ├── routers/
@@ -120,119 +111,110 @@ online_school_backend/
 
 ## API Endpoints
 
-### احراز هویت
-- `POST /auth/login` - ورود به سیستم
-- `POST /auth/register` - ثبت نام کاربر جدید
-- `GET /auth/me` - اطلاعات کاربر جاری
+### Authentication
+- `POST /auth/login` – Login
+- `POST /auth/register` – Register new user
+- `GET /auth/me` – Current user info
 
-### کاربران
-- `GET /users/profile` - پروفایل کاربر
-- `PUT /users/profile` - ویرایش پروفایل
-- `GET /users/payments` - پرداخت‌های من
-- `GET /users/grades` - نمرات من
-- `GET /users/admin/users` - لیست کاربران (فقط ادمین)
-- `PUT /users/admin/users/{user_id}/status` - تغییر وضعیت کاربر (فقط ادمین)
+### Users
+- `GET /users/profile` – Profile
+- `PUT /users/profile` – Update profile
+- `GET /users/payments` – My payments
+- `GET /users/grades` – My grades
+- `GET /users/admin/users` – List users (admin only)
+- `PUT /users/admin/users/{user_id}/status` – Update user status (admin only)
 
-### دوره‌ها
-- `GET /courses/` - لیست دوره‌ها
-- `GET /courses/{course_id}` - جزئیات دوره
-- `POST /courses/` - ایجاد دوره (فقط استاد)
-- `PUT /courses/{course_id}` - ویرایش دوره (استاد/ادمین)
-- `DELETE /courses/{course_id}` - حذف دوره (استاد/ادمین)
-- `GET /courses/{course_id}/assignments` - تکالیف دوره
+### Courses
+- `GET /courses/` – List courses
+- `GET /courses/{course_id}` – Course details
+- `POST /courses/` – Create course (teacher only)
+- `PUT /courses/{course_id}` – Update course (teacher/admin)
+- `DELETE /courses/{course_id}` – Delete course (teacher/admin)
+- `GET /courses/{course_id}/assignments` – Course assignments
 
-### ثبت نام
-- `POST /enrollments/enroll` - ثبت نام در دوره
-- `POST /enrollments/cancel` - انصراف از دوره
+### Enrollments
+- `POST /enrollments/enroll` – Enroll in course
+- `POST /enrollments/cancel` – Cancel enrollment
 
-### تکالیف
-- `POST /assignments/submit` - ارسال تکلیف
-- `POST /assignments/grade` - نمره دهی (فقط استاد)
-- `POST /assignments/create` - ایجاد تکلیف (فقط استاد)
-- `PUT /assignments/update/{assignment_id}` - ویرایش تکلیف (فقط استاد)
-- `DELETE /assignments/delete/{assignment_id}` - حذف تکلیف (فقط استاد)
+### Assignments
+- `POST /assignments/submit` – Submit assignment
+- `POST /assignments/grade` – Grade submission (teacher only)
+- `POST /assignments/create` – Create assignment (teacher only)
+- `PUT /assignments/update/{assignment_id}` – Update assignment (teacher only)
+- `DELETE /assignments/delete/{assignment_id}` – Delete assignment (teacher only)
 
-### حضور و غیاب
-- `POST /attendance/record` - ثبت حضور و غیاب (فقط استاد/ادمین)
+### Attendance
+- `POST /attendance/record` – Record attendance (teacher/admin)
 
-### گواهی‌ها
-- `POST /certificates/issue` - صادر کردن گواهی (فقط استاد/ادمین)
+### Certificates
+- `POST /certificates/issue` – Issue certificates (teacher/admin)
 
-### پرداخت‌ها
-- `GET /payments/` - لیست پرداخت‌ها
-- `GET /payments/{payment_id}` - جزئیات پرداخت
-- `POST /payments/retry/{payment_id}` - تلاش مجدد پرداخت
-- `GET /payments/admin/all` - همه پرداخت‌ها (فقط ادمین)
-- `GET /payments/admin/summary` - خلاصه مالی (فقط ادمین)
+### Payments
+- `GET /payments/` – List payments
+- `GET /payments/{payment_id}` – Payment details
+- `POST /payments/retry/{payment_id}` – Retry failed payment
+- `GET /payments/admin/all` – All payments (admin only)
+- `GET /payments/admin/summary` – Financial summary (admin only)
 
-### گزارشات
-- `GET /reports/top-students` - دانشجویان برتر
-- `GET /reports/teacher-income` - درآمد اساتید
-- `GET /reports/popular-courses` - دوره‌های محبوب
-- `GET /reports/course-enrollments` - آمار ثبت نام
-- `GET /reports/inactive-students` - دانشجویان غیرفعال
-- `GET /reports/failed-payments` - پرداخت‌های ناموفق
-- `GET /reports/course-grades` - نمرات دوره
-- `GET /reports/attendance` - گزارش حضور و غیاب
-- `GET /reports/monthly-income` - درآمد ماهانه
-- `GET /reports/teacher-ranking` - رتبه‌بندی اساتید
+### Reports
+- `GET /reports/top-students` – Top students
+- `GET /reports/teacher-income` – Teacher income
+- `GET /reports/popular-courses` – Popular courses
+- `GET /reports/course-enrollments` – Enrollment statistics
+- `GET /reports/inactive-students` – Inactive students
+- `GET /reports/failed-payments` – Failed payments
+- `GET /reports/course-grades` – Course grades
+- `GET /reports/attendance` – Attendance report
+- `GET /reports/monthly-income` – Monthly income
+- `GET /reports/teacher-ranking` – Teacher ranking
 
-### ویوها
-- `GET /views/student-transcript` - کارنامه دانشجو
-- `GET /views/teacher-dashboard` - داشبورد استاد
-- `GET /views/course-statistics` - آمار دوره‌ها
-- `GET /views/financial-summary` - خلاصه مالی
-- `GET /views/student-certificates` - گواهی‌های دانشجو
+### Views
+- `GET /views/student-transcript` – Student transcript
+- `GET /views/teacher-dashboard` – Teacher dashboard
+- `GET /views/course-statistics` – Course statistics
+- `GET /views/financial-summary` – Financial summary
+- `GET /views/student-certificates` – Student certificates
 
-## نقش‌ها و دسترسی‌ها
+## Roles & Permissions
 
-- **Admin**: دسترسی کامل به همه امکانات
-- **Teacher**: مدیریت دوره‌های خود، نمره دهی، ثبت حضور و غیاب
-- **Student**: ثبت نام در دوره، ارسال تکلیف، مشاهده نمرات و گواهی‌ها
+- **Admin**: Full access to everything.
+- **Teacher**: Manage own courses, grade submissions, record attendance.
+- **Student**: Enroll in courses, submit assignments, view grades and certificates.
 
-## عیب‌یابی
+## Troubleshooting
 
-### خطای `libodbc.so.2: cannot open shared object file`
+### MySQL connection refused
+- Ensure MySQL is running: `sudo systemctl status mysql` (or `docker ps`)
+- Check the port (default 3306, but you configured 1433). Use correct port in `.env`.
 
-```bash
-sudo apt install -y unixodbc unixodbc-dev
-sudo ACCEPT_EULA=Y apt install -y msodbcsql18
-```
+### Module `mysql.connector` not found
+- Install the connector: `pip install mysql-connector-python`
 
-### خطای `No module named '_cffi_backend'`
+### Access denied for user
+- Verify credentials in `.env`
+- If you have no password, set `DB_PASSWORD=` (empty) and ensure the MySQL user allows empty password.
 
-```bash
-pip uninstall cryptography cffi -y
-pip install --force-reinstall cryptography==41.0.7 cffi==1.16.0
-```
+### Stored procedure not found
+- Make sure you executed the complete MySQL script (`online_school.sql`) that creates all procedures.
 
-### خطای اتصال به دیتابیس
+## Testing the API
 
-- مطمئن شوید SQL Server در حال اجراست:
-  ```bash
-  sudo systemctl status mssql-server  # برای نصب مستقیم
-  sudo docker ps  # برای داکر
-  ```
-- بررسی کنید رمز عبور در `.env` درست باشد
-
-## تست API
-
-می‌توانید با استفاده از Swagger UI تست کنید:
+Swagger UI is available at:
 ```
 http://localhost:8000/docs
 ```
 
-## لاگین با کاربران نمونه
+## Sample Login Credentials
 
-- **ادمین**: `admin@onlineschool.test` / `HASH_ADMIN_001` (توجه: این پسورد هش شده است، باید از دیتابیس هش واقعی را ببینید یا کاربر جدید بسازید)
-- **استاد**: `alice.teacher@onlineschool.test`
-- **دانشجو**: `john.student@onlineschool.test`
+> Note: Passwords in the sample database are hashed. It's easier to register a new user first.
 
-> **نکته**: پسوردهای نمونه در دیتابیس به صورت هش ذخیره شده‌اند. برای لاگین بهتر است اول یک کاربر جدید ثبت نام کنید.
+- **Admin**: `admin@onlineschool.test` (password is hashed – register a new admin or check the hash in DB)
+- **Teacher**: `alice.teacher@onlineschool.test`
+- **Student**: `john.student@onlineschool.test`
 
-## توسعه
+## Development
 
-برای اجرا در حالت توسعه:
+To run in development mode with auto-reload:
 
 ```bash
 uvicorn main:app --reload --host 0.0.0.0 --port 8000

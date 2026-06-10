@@ -7,9 +7,8 @@ router = APIRouter(prefix="/attendance", tags=["Attendance"])
 
 @router.post("/record")
 def record_attendance(req: AttendanceRequest, current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
-    # Teacher can only record for their own courses
     if current_user["role"] == "Teacher":
-        course_owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = ?", {"id": req.course_id})
+        course_owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": req.course_id})
         if not course_owner or course_owner[0]["TeacherID"] != int(current_user["sub"]):
             raise HTTPException(403, "You can only record attendance for your own courses")
     result = call_stored_procedure("sp_RecordAttendance", {

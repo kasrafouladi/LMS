@@ -18,15 +18,20 @@ def list_courses(
     search: Optional[str] = None,
     current_user: dict = Depends(optional_user)
 ):
+    # Determine requesting teacher ID (to allow seeing own Draft courses)
+    requesting_teacher_id = None
+    if current_user and current_user.get("role") == "Teacher":
+        requesting_teacher_id = int(current_user["sub"])
+
     courses = call_stored_procedure("sp_GetCourses", {
         "@Status": status,
         "@TeacherID": teacher_id,
         "@MinPrice": min_price,
         "@MaxPrice": max_price,
-        "@SearchTitle": search
+        "@SearchTitle": search,
+        "@RequestingTeacherID": requesting_teacher_id
     })
     data = courses[0] if courses else []
-    # No log for list to avoid spam, but can be uncommented if needed
     return data
 
 @router.get("/{course_id}")
@@ -52,12 +57,7 @@ def get_course_details(
     course = result_sets[0][0] if result_sets[0] else None
     assignments = result_sets[1] if len(result_sets) > 1 else []
     students = result_sets[2] if len(result_sets) > 2 else []
-    response = {
-        "course": course,
-        "assignments": assignments,
-        "students": students
-    }
-    return response
+    return {"course": course, "assignments": assignments, "students": students}
 
 @router.post("/")
 def create_course(req: CourseCreateRequest, current_user: dict = Depends(role_required(["Teacher"]))):
@@ -74,20 +74,16 @@ def create_course(req: CourseCreateRequest, current_user: dict = Depends(role_re
     })
     if result and len(result) > 0 and result[0]:
         course_data = result[0][0]
-        logger.info(f"Teacher {teacher_id} created course ID {course_data.get('CourseID')}")
         return course_data
-    logger.warning(f"Course creation failed for teacher {teacher_id}")
     return {"message": "Course created"}
 
 @router.put("/{course_id}")
 def update_course(course_id: int, req: CourseUpdateRequest, current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
     user_id = int(current_user["sub"])
     role = current_user["role"]
-    logger.info(f"{role} {user_id} updating course {course_id}")
     if role == "Teacher":
         owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": course_id})
         if not owner or owner[0]["TeacherID"] != user_id:
-            logger.warning(f"Teacher {user_id} not owner of course {course_id}")
             raise HTTPException(403, "You can only update your own courses")
     call_stored_procedure("sp_UpdateCourse", {
         "@CourseID": course_id,
@@ -99,21 +95,17 @@ def update_course(course_id: int, req: CourseUpdateRequest, current_user: dict =
         "@Capacity": req.capacity,
         "@Status": req.status
     })
-    logger.info(f"Course {course_id} updated by {role} {user_id}")
     return {"message": "Course updated"}
 
 @router.delete("/{course_id}")
 def delete_course(course_id: int, current_user: dict = Depends(role_required(["Teacher", "Admin"]))):
     user_id = int(current_user["sub"])
     role = current_user["role"]
-    logger.info(f"{role} {user_id} deleting course {course_id}")
     if role == "Teacher":
         owner = execute_query("SELECT TeacherID FROM Course WHERE CourseID = %s", {"id": course_id})
         if not owner or owner[0]["TeacherID"] != user_id:
-            logger.warning(f"Teacher {user_id} not owner of course {course_id}")
             raise HTTPException(403, "You can only delete your own courses")
     call_stored_procedure("sp_DeleteCourse", {"@CourseID": course_id})
-    logger.info(f"Course {course_id} deleted (soft) by {role} {user_id}")
     return {"message": "Course deleted (soft)"}
 
 @router.get("/{course_id}/assignments")
@@ -126,5 +118,11 @@ def get_course_assignments(course_id: int, current_user: dict = Depends(get_curr
         "@StudentID": student_id
     })
     data = assignments[0] if assignments else []
-    # No log for list
     return data
+
+@router.post("/refresh-status")
+def refresh_course_status(current_user: dict = Depends(role_required(["Admin", "Teacher"]))):
+    """Manually run sp_UpdateCourseStatus to transition courses based on dates."""
+    call_stored_procedure("sp_UpdateCourseStatus")
+    logger.info(f"Course statuses refreshed by {current_user['role']} {current_user['sub']}")
+    return {"message": "Course statuses updated"}

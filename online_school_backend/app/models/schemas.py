@@ -34,7 +34,7 @@ class CourseUpdateRequest(BaseModel):
     start_date: Optional[datetime] = None
     end_date: Optional[datetime] = None
     capacity: Optional[int] = Field(None, gt=0)
-    status: Optional[str] = None
+    status: Optional[str] = Field(None, pattern="^(Draft|Upcoming|Active|Completed|Cancelled)$")
 
 class EnrollRequest(BaseModel):
     course_id: int
@@ -68,10 +68,20 @@ class UpdateUserStatusRequest(BaseModel):
 class AssignmentCreateRequest(BaseModel):
     course_id: int
     title: str = Field(..., min_length=3, max_length=150)
+    description: Optional[str] = None
     due_date: datetime
     max_score: float = Field(..., gt=0, le=20)
 
 class AssignmentUpdateRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=150)
+    description: Optional[str] = None
     due_date: Optional[datetime] = None
     max_score: Optional[float] = Field(None, gt=0, le=20)
+
+class AnnouncementCreateRequest(BaseModel):
+    title: str = Field(..., min_length=3, max_length=150)
+    content: str = Field(..., min_length=1)
+
+class AnnouncementUpdateRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=150)
+    content: Optional[str] = Field(None, min_length=1)

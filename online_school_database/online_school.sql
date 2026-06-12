@@ -1,5 +1,5 @@
 -- =============================================================================
--- Online School Management System (MySQL Version) - FULLY FIXED
+-- Online School Management System (MySQL Version) - FULLY FIXED v2
 -- =============================================================================
 
 DROP DATABASE IF EXISTS OnlineSchoolDB;
@@ -43,6 +43,12 @@ CREATE TABLE Teacher (
     CONSTRAINT CK_Teacher_TotalIncome CHECK (TotalIncome >= 0)
 );
 
+-- NOTE: Course.Status now includes 'Draft' to represent a course the teacher
+-- is still preparing. While a course is 'Draft' or 'Active', students cannot
+-- enroll (enrollment is only allowed while status = 'Upcoming').
+-- 'Active' means the course is currently being held (in progress) -- new
+-- enrollments are blocked so the teacher has time to deliver existing content
+-- without late joiners disrupting the course.
 CREATE TABLE Course (
     CourseID INT AUTO_INCREMENT PRIMARY KEY,
     TeacherID INT NOT NULL,
@@ -52,13 +58,13 @@ CREATE TABLE Course (
     StartDate DATETIME(0) NOT NULL,
     EndDate DATETIME(0) NOT NULL,
     Capacity INT NOT NULL,
-    Status VARCHAR(20) NOT NULL DEFAULT 'Upcoming',
+    Status VARCHAR(20) NOT NULL DEFAULT 'Draft',
     IsDeleted TINYINT(1) NOT NULL DEFAULT 0,
     CONSTRAINT FK_Course_Teacher FOREIGN KEY (TeacherID) REFERENCES Teacher(TeacherID),
     CONSTRAINT CK_Course_Title CHECK (CHAR_LENGTH(Title) BETWEEN 3 AND 150),
     CONSTRAINT CK_Course_Price CHECK (Price >= 0),
     CONSTRAINT CK_Course_Capacity CHECK (Capacity > 0),
-    CONSTRAINT CK_Course_Status CHECK (Status IN ('Upcoming', 'Active', 'Completed', 'Cancelled')),
+    CONSTRAINT CK_Course_Status CHECK (Status IN ('Draft', 'Upcoming', 'Active', 'Completed', 'Cancelled')),
     CONSTRAINT CK_Course_Dates CHECK (EndDate > StartDate)
 );
 
@@ -82,6 +88,7 @@ CREATE TABLE Assignment (
     AssignmentID INT AUTO_INCREMENT PRIMARY KEY,
     CourseID INT NOT NULL,
     Title VARCHAR(150) NOT NULL,
+    Description TEXT NULL,
     DueDate DATETIME(0) NOT NULL,
     MaxScore DECIMAL(4,2) NOT NULL,
     CONSTRAINT FK_Assignment_Course FOREIGN KEY (CourseID) REFERENCES Course(CourseID),
@@ -97,7 +104,7 @@ CREATE TABLE Submission (
     FileURL VARCHAR(500) NOT NULL,
     Score DECIMAL(4,2) NULL,
     Feedback TEXT NULL,
-    CONSTRAINT FK_Submission_Assignment FOREIGN KEY (AssignmentID) REFERENCES Assignment(AssignmentID),
+    CONSTRAINT FK_Submission_Assignment FOREIGN KEY (AssignmentID) REFERENCES Assignment(AssignmentID) ON DELETE CASCADE,
     CONSTRAINT FK_Submission_Student FOREIGN KEY (StudentID) REFERENCES Student(StudentID),
     CONSTRAINT UQ_Submission_Assignment_Student UNIQUE (AssignmentID, StudentID),
     CONSTRAINT CK_Submission_Score CHECK (Score IS NULL OR Score BETWEEN 0 AND 20)
@@ -150,6 +157,19 @@ CREATE TABLE FinancialReportLog (
     GeneratedAt DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- NEW: Announcements posted by a course's teacher
+CREATE TABLE Announcement (
+    AnnouncementID INT AUTO_INCREMENT PRIMARY KEY,
+    CourseID INT NOT NULL,
+    Title VARCHAR(150) NOT NULL,
+    Content TEXT NOT NULL,
+    CreatedAt DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0),
+    UpdatedAt DATETIME(0) NOT NULL DEFAULT CURRENT_TIMESTAMP(0) ON UPDATE CURRENT_TIMESTAMP(0),
+    CONSTRAINT FK_Announcement_Course FOREIGN KEY (CourseID) REFERENCES Course(CourseID) ON DELETE CASCADE,
+    CONSTRAINT CK_Announcement_Title CHECK (CHAR_LENGTH(Title) BETWEEN 3 AND 150),
+    CONSTRAINT CK_Announcement_Content CHECK (CHAR_LENGTH(Content) >= 1)
+);
+
 -- =============================================================================
 -- SAMPLE DATA (with explicit IDs)
 -- =============================================================================
@@ -184,19 +204,29 @@ INSERT INTO Teacher (TeacherID, Expertise, HireDate, TotalIncome) VALUES
 (2, 'Database and SQL', '2021-09-01', 0),
 (3, 'Artificial Intelligence', '2020-10-15', 0);
 
+-- Courses:
+--  1 SQL Basics      -> Completed (past)
+--  2 Database Design -> Active (in progress, enrollment closed)
+--  3 AI Fundamentals  -> Upcoming (enrollment OPEN - mock "can enroll" course)
+--  4 Networks         -> Completed (past)
+--  5 Algorithms       -> Active (in progress, enrollment closed)
+--  6 Web Development  -> Draft (teacher still preparing, enrollment closed)
+--  7 Cloud Computing  -> Upcoming (enrollment OPEN - mock "can enroll" course)
 INSERT INTO Course (CourseID, TeacherID, Title, Description, Price, StartDate, EndDate, Capacity, Status, IsDeleted) VALUES
 (1, 2, 'SQL Basics', 'Introductory SQL course', 1200.00, DATE_SUB(NOW(), INTERVAL 120 DAY), DATE_SUB(NOW(), INTERVAL 90 DAY), 3, 'Completed', 0),
 (2, 2, 'Database Design', 'Relational model and normalization', 1500.00, DATE_SUB(NOW(), INTERVAL 10 DAY), DATE_ADD(NOW(), INTERVAL 20 DAY), 4, 'Active', 0),
 (3, 3, 'AI Fundamentals', 'Basic AI and machine learning concepts', 1800.00, DATE_ADD(NOW(), INTERVAL 10 DAY), DATE_ADD(NOW(), INTERVAL 50 DAY), 4, 'Upcoming', 0),
 (4, 3, 'Networks', 'Computer networks and protocols', 1000.00, DATE_SUB(NOW(), INTERVAL 60 DAY), DATE_SUB(NOW(), INTERVAL 30 DAY), 5, 'Completed', 0),
-(5, 2, 'Algorithms', 'Algorithms and problem solving', 1400.00, DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_ADD(NOW(), INTERVAL 15 DAY), 5, 'Active', 0);
+(5, 2, 'Algorithms', 'Algorithms and problem solving', 1400.00, DATE_SUB(NOW(), INTERVAL 15 DAY), DATE_ADD(NOW(), INTERVAL 15 DAY), 5, 'Active', 0),
+(6, 2, 'Web Development', 'Full-stack web development with modern frameworks', 1600.00, DATE_ADD(NOW(), INTERVAL 25 DAY), DATE_ADD(NOW(), INTERVAL 70 DAY), 6, 'Draft', 0),
+(7, 3, 'Cloud Computing', 'Intro to cloud infrastructure and deployment', 1700.00, DATE_ADD(NOW(), INTERVAL 14 DAY), DATE_ADD(NOW(), INTERVAL 60 DAY), 5, 'Upcoming', 0);
 
-INSERT INTO Assignment (AssignmentID, CourseID, Title, DueDate, MaxScore) VALUES
-(1, 1, 'SQL Query Set 1', DATE_SUB(NOW(), INTERVAL 100 DAY), 20),
-(2, 1, 'SQL Query Set 2', DATE_SUB(NOW(), INTERVAL 95 DAY), 20),
-(3, 2, 'Normalization Task', DATE_ADD(NOW(), INTERVAL 10 DAY), 20),
-(4, 4, 'Network Basics Quiz', DATE_SUB(NOW(), INTERVAL 35 DAY), 20),
-(5, 5, 'Algorithms Homework', DATE_ADD(NOW(), INTERVAL 10 DAY), 20);
+INSERT INTO Assignment (AssignmentID, CourseID, Title, Description, DueDate, MaxScore) VALUES
+(1, 1, 'SQL Query Set 1', 'Write 5 SELECT queries covering joins and aggregation.', DATE_SUB(NOW(), INTERVAL 100 DAY), 20),
+(2, 1, 'SQL Query Set 2', 'Write queries using subqueries and window functions.', DATE_SUB(NOW(), INTERVAL 95 DAY), 20),
+(3, 2, 'Normalization Task', 'Normalize the given schema to 3NF and explain each step.', DATE_ADD(NOW(), INTERVAL 10 DAY), 20),
+(4, 4, 'Network Basics Quiz', 'Answer the quiz covering OSI and TCP/IP layers.', DATE_SUB(NOW(), INTERVAL 35 DAY), 20),
+(5, 5, 'Algorithms Homework', 'Implement and analyze the given sorting algorithms.', DATE_ADD(NOW(), INTERVAL 10 DAY), 20);
 
 INSERT INTO Enrollment (EnrollmentID, StudentID, CourseID, EnrollmentDate, Status, FinalScore, ProgressPercent) VALUES
 (1, 4, 1, DATE_SUB(NOW(), INTERVAL 119 DAY), 'Successful', 18.00, 100),
@@ -240,10 +270,18 @@ INSERT INTO Attendance (AttendanceID, StudentID, CourseID, SessionDate, Status) 
 (5, 9, 4, DATE_SUB(CURDATE(), INTERVAL 45 DAY), 'Present'),
 (6, 4, 5, DATE_SUB(CURDATE(), INTERVAL 5 DAY),  'Present');
 
+-- Mock announcements: teacher 2 (Alice) posted in courses 1, 2, 5; teacher 3 (Bob) in course 4.
+INSERT INTO Announcement (AnnouncementID, CourseID, Title, Content, CreatedAt) VALUES
+(1, 1, 'Welcome to SQL Basics', 'Welcome everyone! Please check the syllabus and complete Assignment 1 by the due date.', DATE_SUB(NOW(), INTERVAL 119 DAY)),
+(2, 1, 'Course Completed', 'Thanks for a great course. Certificates will be issued shortly for those who passed.', DATE_SUB(NOW(), INTERVAL 89 DAY)),
+(3, 2, 'Live Session Schedule', 'Our live sessions will be held every Tuesday at 6 PM. Recordings will be posted afterwards.', DATE_SUB(NOW(), INTERVAL 9 DAY)),
+(4, 5, 'Assignment Reminder', 'Reminder: Algorithms Homework is due soon. Reach out if you have questions.', DATE_SUB(NOW(), INTERVAL 3 DAY)),
+(5, 4, 'Final Grades Posted', 'Final grades and certificates have been processed for Networks.', DATE_SUB(NOW(), INTERVAL 29 DAY));
+
 SET FOREIGN_KEY_CHECKS = @OLD_FOREIGN_KEY_CHECKS;
 
 ALTER TABLE `User` AUTO_INCREMENT = 12;
-ALTER TABLE Course AUTO_INCREMENT = 6;
+ALTER TABLE Course AUTO_INCREMENT = 8;
 ALTER TABLE Assignment AUTO_INCREMENT = 6;
 ALTER TABLE Enrollment AUTO_INCREMENT = 11;
 ALTER TABLE Payment AUTO_INCREMENT = 11;
@@ -251,6 +289,7 @@ ALTER TABLE Submission AUTO_INCREMENT = 9;
 ALTER TABLE Attendance AUTO_INCREMENT = 7;
 ALTER TABLE Certificate AUTO_INCREMENT = 1;
 ALTER TABLE FinancialReportLog AUTO_INCREMENT = 1;
+ALTER TABLE Announcement AUTO_INCREMENT = 6;
 
 -- =============================================================================
 -- FUNCTION
@@ -290,6 +329,10 @@ BEGIN
     SELECT p_StudentID AS StudentID, v_NewGPA AS CalculatedGPA;
 END //
 
+-- ENROLLMENT: only allowed while Course.Status = 'Upcoming'.
+-- 'Draft'    -> teacher still preparing content, not open yet.
+-- 'Active'   -> course already in progress, new enrollments blocked.
+-- 'Completed'/'Cancelled' -> course is over.
 CREATE PROCEDURE sp_EnrollStudentInCourse(
     IN p_StudentID INT,
     IN p_CourseID INT,
@@ -332,8 +375,12 @@ BEGIN
     FROM Course c
     WHERE c.CourseID = p_CourseID AND c.IsDeleted = 0;
 
-    IF v_CourseStatus IS NULL OR v_CourseStatus NOT IN ('Upcoming', 'Active') THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found or not open for enrollment.';
+    IF v_CourseStatus IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found.';
+    END IF;
+
+    IF v_CourseStatus <> 'Upcoming' THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Enrollment is only open while the course status is Upcoming.';
     END IF;
 
     IF p_Amount <> v_CoursePrice THEN
@@ -544,6 +591,7 @@ BEGIN
     SELECT LAST_INSERT_ID() AS AttendanceID, 'Attendance recorded.' AS Message;
 END //
 
+-- Certificates only issued once a course has actually ended (Completed).
 CREATE PROCEDURE sp_IssueCertificatesForCourse(IN p_CourseID INT)
 BEGIN
     DECLARE v_IssuedCount INT DEFAULT 0;
@@ -567,6 +615,7 @@ BEGIN
     WHERE e.Status = 'Successful'
       AND e.FinalScore IS NOT NULL
       AND e.FinalScore >= 10
+      AND c.Status = 'Completed'
       AND c.EndDate <= NOW()
       AND (p_CourseID IS NULL OR e.CourseID = p_CourseID)
       AND NOT EXISTS (
@@ -638,40 +687,51 @@ BEGIN
            'Enrollment canceled successfully.' AS Message;
 END //
 
+-- Course status lifecycle: Draft -> Upcoming -> Active -> Completed
+-- Draft is never auto-transitioned (teacher must explicitly publish it to
+-- Upcoming once content/assignments are ready). Cancelled is also never
+-- auto-set by this procedure.
 CREATE PROCEDURE sp_UpdateCourseStatus()
 BEGIN
     UPDATE Course
     SET Status = 'Completed'
-    WHERE EndDate <= NOW() AND Status <> 'Completed';
+    WHERE EndDate <= NOW() AND Status IN ('Upcoming', 'Active');
 
     UPDATE Course
     SET Status = 'Active'
     WHERE StartDate <= NOW() AND EndDate > NOW() AND Status = 'Upcoming';
 
-    UPDATE Course
-    SET Status = 'Upcoming'
-    WHERE StartDate > NOW() AND Status NOT IN ('Upcoming', 'Completed');
-
     SELECT 'Course statuses refreshed.' AS Message;
 END //
 
+-- Assignments may only be created/edited/deleted while the course is not
+-- finished (Completed/Cancelled), to avoid corrupting historical records.
 CREATE PROCEDURE sp_CreateAssignment(
     IN p_CourseID INT,
     IN p_Title VARCHAR(150),
+    IN p_Description TEXT,
     IN p_DueDate DATETIME(0),
     IN p_MaxScore DECIMAL(4,2)
 )
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM Course WHERE CourseID = p_CourseID AND IsDeleted = 0) THEN
+    DECLARE v_CourseStatus VARCHAR(20);
+
+    SELECT Status INTO v_CourseStatus FROM Course WHERE CourseID = p_CourseID AND IsDeleted = 0;
+
+    IF v_CourseStatus IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found.';
+    END IF;
+
+    IF v_CourseStatus IN ('Completed', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot add assignments to a finished course.';
     END IF;
 
     IF p_MaxScore <= 0 OR p_MaxScore > 20 THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'MaxScore must be between 0.01 and 20.';
     END IF;
 
-    INSERT INTO Assignment (CourseID, Title, DueDate, MaxScore)
-    VALUES (p_CourseID, p_Title, p_DueDate, p_MaxScore);
+    INSERT INTO Assignment (CourseID, Title, Description, DueDate, MaxScore)
+    VALUES (p_CourseID, p_Title, p_Description, p_DueDate, p_MaxScore);
 
     SELECT LAST_INSERT_ID() AS AssignmentID, 'Assignment created successfully.' AS Message;
 END //
@@ -679,12 +739,24 @@ END //
 CREATE PROCEDURE sp_UpdateAssignment(
     IN p_AssignmentID INT,
     IN p_Title VARCHAR(150),
+    IN p_Description TEXT,
     IN p_DueDate DATETIME(0),
     IN p_MaxScore DECIMAL(4,2)
 )
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM Assignment WHERE AssignmentID = p_AssignmentID) THEN
+    DECLARE v_CourseStatus VARCHAR(20);
+    DECLARE v_CourseID INT;
+
+    SELECT a.CourseID, c.Status INTO v_CourseID, v_CourseStatus
+    FROM Assignment a INNER JOIN Course c ON a.CourseID = c.CourseID
+    WHERE a.AssignmentID = p_AssignmentID;
+
+    IF v_CourseID IS NULL THEN
         SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Assignment not found.';
+    END IF;
+
+    IF v_CourseStatus IN ('Completed', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot edit assignments of a finished course.';
     END IF;
 
     IF p_MaxScore IS NOT NULL AND (p_MaxScore <= 0 OR p_MaxScore > 20) THEN
@@ -694,6 +766,7 @@ BEGIN
     UPDATE Assignment
     SET
         Title = COALESCE(p_Title, Title),
+        Description = COALESCE(p_Description, Description),
         DueDate = COALESCE(p_DueDate, DueDate),
         MaxScore = COALESCE(p_MaxScore, MaxScore)
     WHERE AssignmentID = p_AssignmentID;
@@ -701,16 +774,72 @@ BEGIN
     SELECT p_AssignmentID AS AssignmentID, 'Assignment updated successfully.' AS Message;
 END //
 
+-- Deleting an assignment cascades to its submissions (FK ON DELETE CASCADE).
+-- Any enrollment FinalScore values that were derived from those submissions
+-- are recalculated afterwards so no stale/orphan grade data remains.
 CREATE PROCEDURE sp_DeleteAssignment(IN p_AssignmentID INT)
 BEGIN
-    IF EXISTS (SELECT 1 FROM Submission WHERE AssignmentID = p_AssignmentID) THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot delete assignment because submissions already exist.';
+    DECLARE v_CourseID INT;
+    DECLARE v_CourseStatus VARCHAR(20);
+
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        RESIGNAL;
+    END;
+
+    SELECT a.CourseID, c.Status INTO v_CourseID, v_CourseStatus
+    FROM Assignment a INNER JOIN Course c ON a.CourseID = c.CourseID
+    WHERE a.AssignmentID = p_AssignmentID;
+
+    IF v_CourseID IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Assignment not found.';
     END IF;
 
+    IF v_CourseStatus IN ('Completed', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot delete assignments of a finished course.';
+    END IF;
+
+    START TRANSACTION;
+
+    -- حذف تکلیف (submission‌ها به صورت آبشاری حذف می‌شوند)
     DELETE FROM Assignment WHERE AssignmentID = p_AssignmentID;
 
+    -- بازمحاسبه FinalScore برای همه دانشجویان این درس
+    UPDATE Enrollment e
+    SET e.FinalScore = (
+        SELECT AVG(s.Score)
+        FROM Submission s
+        INNER JOIN Assignment a ON s.AssignmentID = a.AssignmentID
+        WHERE s.StudentID = e.StudentID
+          AND a.CourseID = v_CourseID
+          AND s.Score IS NOT NULL
+    )
+    WHERE e.CourseID = v_CourseID;
+
+    -- به‌روزرسانی GPA تمام دانشجویان این درس (حالا داخل تراکنش)
+    BEGIN
+        DECLARE done INT DEFAULT 0;
+        DECLARE v_StudentID INT;
+        DECLARE cur CURSOR FOR
+            SELECT StudentID FROM Enrollment WHERE CourseID = v_CourseID;
+        DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = 1;
+
+        OPEN cur;
+        read_loop: LOOP
+            FETCH cur INTO v_StudentID;
+            IF done = 1 THEN
+                LEAVE read_loop;
+            END IF;
+            CALL sp_UpdateStudentGPA(v_StudentID);
+        END LOOP;
+        CLOSE cur;
+    END;
+
+    COMMIT;
+
     SELECT p_AssignmentID AS AssignmentID, 'Assignment deleted successfully.' AS Message;
-END //
+END;
 
 CREATE PROCEDURE sp_GetSubmissionsForGrading(
     IN p_TeacherID INT,
@@ -751,6 +880,120 @@ BEGIN
     END IF;
     SET v_NewGPA = fn_CalculateStudentGPA(p_StudentID);
     UPDATE Student SET GPA = v_NewGPA WHERE StudentID = p_StudentID;
+END //
+
+-- =============================================================================
+-- ANNOUNCEMENT PROCEDURES (NEW)
+-- =============================================================================
+
+-- Announcements can be posted for any non-deleted course owned by the
+-- teacher (Draft included, so the teacher can prep announcements before
+-- publishing the course), but not for finished courses.
+CREATE PROCEDURE sp_CreateAnnouncement(
+    IN p_CourseID INT,
+    IN p_TeacherID INT,
+    IN p_Title VARCHAR(150),
+    IN p_Content TEXT
+)
+BEGIN
+    DECLARE v_TeacherID INT;
+    DECLARE v_CourseStatus VARCHAR(20);
+
+    SELECT TeacherID, Status INTO v_TeacherID, v_CourseStatus
+    FROM Course WHERE CourseID = p_CourseID AND IsDeleted = 0;
+
+    IF v_TeacherID IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found.';
+    END IF;
+
+    IF v_TeacherID <> p_TeacherID THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You can only post announcements for your own courses.';
+    END IF;
+
+    IF v_CourseStatus IN ('Completed', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot post announcements for a finished course.';
+    END IF;
+
+    INSERT INTO Announcement (CourseID, Title, Content)
+    VALUES (p_CourseID, p_Title, p_Content);
+
+    SELECT LAST_INSERT_ID() AS AnnouncementID, 'Announcement created successfully.' AS Message;
+END //
+
+CREATE PROCEDURE sp_UpdateAnnouncement(
+    IN p_AnnouncementID INT,
+    IN p_TeacherID INT,
+    IN p_Title VARCHAR(150),
+    IN p_Content TEXT
+)
+BEGIN
+    DECLARE v_TeacherID INT;
+    DECLARE v_CourseStatus VARCHAR(20);
+
+    SELECT c.TeacherID, c.Status INTO v_TeacherID, v_CourseStatus
+    FROM Announcement an INNER JOIN Course c ON an.CourseID = c.CourseID
+    WHERE an.AnnouncementID = p_AnnouncementID;
+
+    IF v_TeacherID IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Announcement not found.';
+    END IF;
+
+    IF v_TeacherID <> p_TeacherID THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You can only edit announcements for your own courses.';
+    END IF;
+
+    IF v_CourseStatus IN ('Completed', 'Cancelled') THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot edit announcements of a finished course.';
+    END IF;
+
+    UPDATE Announcement
+    SET
+        Title = COALESCE(p_Title, Title),
+        Content = COALESCE(p_Content, Content)
+    WHERE AnnouncementID = p_AnnouncementID;
+
+    SELECT p_AnnouncementID AS AnnouncementID, 'Announcement updated successfully.' AS Message;
+END //
+
+CREATE PROCEDURE sp_DeleteAnnouncement(
+    IN p_AnnouncementID INT,
+    IN p_TeacherID INT
+)
+BEGIN
+    DECLARE v_TeacherID INT;
+
+    SELECT c.TeacherID INTO v_TeacherID
+    FROM Announcement an INNER JOIN Course c ON an.CourseID = c.CourseID
+    WHERE an.AnnouncementID = p_AnnouncementID;
+
+    IF v_TeacherID IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Announcement not found.';
+    END IF;
+
+    IF v_TeacherID <> p_TeacherID THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'You can only delete announcements for your own courses.';
+    END IF;
+
+    DELETE FROM Announcement WHERE AnnouncementID = p_AnnouncementID;
+
+    SELECT p_AnnouncementID AS AnnouncementID, 'Announcement deleted successfully.' AS Message;
+END //
+
+-- Returns announcements for a course. Caller (API layer) is responsible for
+-- checking that the requesting user is the course's teacher or an enrolled
+-- (Successful) student before calling this.
+CREATE PROCEDURE sp_GetAnnouncementsByCourse(IN p_CourseID INT)
+BEGIN
+    SELECT
+        AnnouncementID,
+        CourseID,
+        Title,
+        Content,
+        CreatedAt,
+        UpdatedAt
+    FROM Announcement
+    WHERE CourseID = p_CourseID
+    ORDER BY CreatedAt DESC;
 END //
 
 -- =============================================================================
@@ -1280,12 +1523,15 @@ BEGIN
     SELECT 'User status updated' AS Message;
 END //
 
+-- sp_GetCourses now defaults to excluding Draft courses for the public
+-- listing (p_IncludeDraftFor lets a teacher see their own drafts).
 CREATE PROCEDURE sp_GetCourses(
     IN p_Status VARCHAR(20),
     IN p_TeacherID INT,
     IN p_MinPrice DECIMAL(12,2),
     IN p_MaxPrice DECIMAL(12,2),
-    IN p_SearchTitle VARCHAR(150)
+    IN p_SearchTitle VARCHAR(150),
+    IN p_RequestingTeacherID INT
 )
 BEGIN
     SELECT
@@ -1308,6 +1554,10 @@ BEGIN
       AND (p_MinPrice IS NULL OR c.Price >= p_MinPrice)
       AND (p_MaxPrice IS NULL OR c.Price <= p_MaxPrice)
       AND (p_SearchTitle IS NULL OR c.Title LIKE CONCAT('%', p_SearchTitle, '%'))
+      AND (
+          c.Status <> 'Draft'
+          OR (p_RequestingTeacherID IS NOT NULL AND c.TeacherID = p_RequestingTeacherID)
+      )
     ORDER BY c.StartDate;
 END //
 
@@ -1336,6 +1586,7 @@ BEGIN
         SELECT
             a.AssignmentID,
             a.Title,
+            a.Description,
             a.DueDate,
             a.MaxScore,
             (SELECT COUNT(*) FROM Submission s WHERE s.AssignmentID = a.AssignmentID) AS SubmissionCount
@@ -1361,6 +1612,9 @@ BEGIN
     END IF;
 END //
 
+-- New courses are created in 'Draft' status by default so the teacher can
+-- prepare assignments/announcements before publishing (-> Upcoming) and
+-- opening enrollment.
 CREATE PROCEDURE sp_CreateCourse(
     IN p_TeacherID INT,
     IN p_Title VARCHAR(150),
@@ -1376,11 +1630,18 @@ BEGIN
     END IF;
 
     INSERT INTO Course (TeacherID, Title, Description, Price, StartDate, EndDate, Capacity, Status, IsDeleted)
-    VALUES (p_TeacherID, p_Title, p_Description, p_Price, p_StartDate, p_EndDate, p_Capacity, 'Upcoming', 0);
+    VALUES (p_TeacherID, p_Title, p_Description, p_Price, p_StartDate, p_EndDate, p_Capacity, 'Draft', 0);
 
     SELECT LAST_INSERT_ID() AS CourseID, 'Course created' AS Message;
 END //
 
+-- Status transitions are restricted to a sane forward lifecycle:
+-- Draft -> Upcoming (publish, opens enrollment)
+-- Upcoming -> Active/Completed/Cancelled
+-- Active -> Completed/Cancelled
+-- Completed/Cancelled are terminal (no further status changes).
+-- Manual transition INTO 'Active' from 'Draft' is blocked (must go through
+-- Upcoming so students have a chance to enroll first).
 CREATE PROCEDURE sp_UpdateCourse(
     IN p_CourseID INT,
     IN p_Title VARCHAR(150),
@@ -1392,6 +1653,32 @@ CREATE PROCEDURE sp_UpdateCourse(
     IN p_Status VARCHAR(20)
 )
 BEGIN
+    DECLARE v_CurrentStatus VARCHAR(20);
+
+    SELECT Status INTO v_CurrentStatus FROM Course WHERE CourseID = p_CourseID AND IsDeleted = 0;
+
+    IF v_CurrentStatus IS NULL THEN
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found or deleted.';
+    END IF;
+
+    IF p_Status IS NOT NULL AND p_Status <> v_CurrentStatus THEN
+        IF v_CurrentStatus IN ('Completed', 'Cancelled') THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Cannot change status of a finished course.';
+        END IF;
+
+        IF v_CurrentStatus = 'Draft' AND p_Status NOT IN ('Upcoming', 'Cancelled') THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'A Draft course can only move to Upcoming or Cancelled.';
+        END IF;
+
+        IF v_CurrentStatus = 'Upcoming' AND p_Status NOT IN ('Active', 'Completed', 'Cancelled', 'Draft') THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Invalid status transition from Upcoming.';
+        END IF;
+
+        IF v_CurrentStatus = 'Active' AND p_Status NOT IN ('Completed', 'Cancelled') THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'An Active course can only move to Completed or Cancelled.';
+        END IF;
+    END IF;
+
     UPDATE Course
     SET
         Title = COALESCE(p_Title, Title),
@@ -1402,10 +1689,6 @@ BEGIN
         Capacity = COALESCE(p_Capacity, Capacity),
         Status = COALESCE(p_Status, Status)
     WHERE CourseID = p_CourseID AND IsDeleted = 0;
-
-    IF ROW_COUNT() = 0 THEN
-        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Course not found or deleted.';
-    END IF;
 
     SELECT 'Course updated' AS Message;
 END //
@@ -1421,10 +1704,12 @@ BEGIN
     SELECT
         a.AssignmentID,
         a.Title,
+        a.Description,
         a.DueDate,
         a.MaxScore,
         s.SubmissionID,
         s.SubmissionDate,
+        s.FileURL AS SubmissionURL,
         s.Score,
         s.Feedback,
         CASE
@@ -1472,6 +1757,13 @@ GRANT EXECUTE ON PROCEDURE sp_IssueCertificatesForCourse TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_UpdateCourseStatus TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportTeacherIncome TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_CreateAnnouncement TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_UpdateAnnouncement TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_DeleteAnnouncement TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_GetAnnouncementsByCourse TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_CreateAssignment TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_UpdateAssignment TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_DeleteAssignment TO TeacherRole;
 GRANT SELECT ON vw_TeacherDashboard TO TeacherRole;
 GRANT SELECT ON vw_CourseStatistics TO TeacherRole;
 GRANT SELECT ON vw_StudentTranscript TO TeacherRole;
@@ -1481,6 +1773,7 @@ GRANT EXECUTE ON PROCEDURE sp_EnrollStudentInCourse TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_SubmitAssignment TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportCourseGrades TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportAttendance TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetAnnouncementsByCourse TO StudentRole;
 GRANT SELECT ON vw_StudentTranscript TO StudentRole;
 GRANT SELECT ON vw_StudentCertificates TO StudentRole;
 GRANT SELECT ON vw_CourseStatistics TO StudentRole;
@@ -1490,6 +1783,11 @@ GRANT SELECT ON vw_CourseStatistics TO StudentRole;
 -- =============================================================================
 
 CALL sp_UpdateCourseStatus();
+
+-- Publish the draft course so it becomes available for enrollment (Upcoming)
+CALL sp_UpdateCourse(6, NULL, NULL, NULL, NULL, NULL, NULL, 'Upcoming');
+
+-- Existing flows
 CALL sp_EnrollStudentInCourse(8, 5, 1400.00, NULL);
 CALL sp_SubmitAssignment(5, 4, 'https://files.example.com/new_submission.pdf');
 SET @NewSubmissionID = (SELECT MAX(SubmissionID) FROM Submission WHERE StudentID = 4 AND AssignmentID = 5);
@@ -1500,6 +1798,21 @@ CALL sp_IssueCertificatesForCourse(4);
 CALL sp_CancelEnrollment(4);
 SELECT fn_CalculateStudentGPA(4) AS StudentGPA;
 CALL sp_GetCourseStudents(1);
+
+-- Announcement flow tests
+CALL sp_CreateAnnouncement(2, 2, 'New Material Uploaded', 'Lecture slides for week 3 have been uploaded to the resources page.');
+SET @NewAnnouncementID = LAST_INSERT_ID();
+CALL sp_UpdateAnnouncement(@NewAnnouncementID, 2, 'New Material Uploaded (Updated)', 'Lecture slides and exercises for week 3 have been uploaded.');
+CALL sp_GetAnnouncementsByCourse(2);
+CALL sp_DeleteAnnouncement(@NewAnnouncementID, 2);
+
+-- Assignment edit/delete flow tests (course 2 is Active, still editable)
+CALL sp_CreateAssignment(2, 'Extra Practice Set', 'Optional extra practice problems.', DATE_ADD(NOW(), INTERVAL 12 DAY), 10);
+SET @NewAssignmentID = LAST_INSERT_ID();
+CALL sp_UpdateAssignment(@NewAssignmentID, 'Extra Practice Set (Revised)', 'Optional extra practice problems, revised version.', DATE_ADD(NOW(), INTERVAL 14 DAY), 15);
+CALL sp_DeleteAssignment(@NewAssignmentID);
+
+-- Reports
 CALL sp_ReportTopStudents(5);
 CALL sp_ReportTeacherIncome(DATE_SUB(CURDATE(), INTERVAL 365 DAY), CURDATE());
 CALL sp_ReportPopularCourses();
@@ -1516,3 +1829,7 @@ SELECT * FROM vw_CourseStatistics;
 SELECT * FROM vw_FinancialSummary;
 SELECT * FROM vw_StudentCertificates;
 CALL sp_GenerateMonthlyFinancialReport(2025, 1);
+
+-- Sanity check: list courses (public, drafts hidden), and as the owning teacher (drafts shown)
+CALL sp_GetCourses(NULL, NULL, NULL, NULL, NULL, NULL);
+CALL sp_GetCourses(NULL, NULL, NULL, NULL, NULL, 2);

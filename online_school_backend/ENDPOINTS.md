@@ -1,4 +1,4 @@
-# Online School API Documentation (Final)
+# Online School API Documentation (Final) – Updated
 
 **Base URL:** `http://localhost:8000`  
 **Authentication:** JWT Bearer token (except for public endpoints).  
@@ -6,6 +6,12 @@
 
 All endpoints that require a token will return `401` if token missing/invalid.  
 Role-based access (`Admin`, `Teacher`, `Student`) is enforced as described.
+
+> **New in this version:**  
+> - Announcements CRUD for courses (teachers post, enrolled students read)  
+> - Teachers can now delete assignments even if submissions exist (grades are recalculated)  
+> - Teachers see their own `Draft` courses when listing courses (via automatic detection of requesting teacher)  
+> - Manual course status refresh endpoint
 
 ---
 
@@ -252,7 +258,8 @@ curl -X PUT "http://localhost:8000/users/admin/users/13/status" \
 ## Courses
 
 ### `GET /courses/`
-List courses with filters (public, no token required).
+List courses with filters (public, no token required).  
+**Note:** Teachers automatically see their own `Draft` courses when logged in.
 
 **curl:**
 ```bash
@@ -320,7 +327,7 @@ curl -X GET "http://localhost:8000/courses/5" \
 ---
 
 ### `POST /courses/`
-Create a new course (teacher only).
+Create a new course (teacher only). Course is created in `Draft` status.
 
 **curl:**
 ```bash
@@ -348,7 +355,8 @@ curl -X POST "http://localhost:8000/courses/" \
 ---
 
 ### `PUT /courses/{course_id}`
-Update a course (teacher only for own course, or admin).
+Update a course (teacher only for own course, or admin).  
+Use `status` to transition: `Draft` → `Upcoming` → `Active` → `Completed` / `Cancelled`.
 
 **curl:**
 ```bash
@@ -417,10 +425,29 @@ curl -X GET "http://localhost:8000/courses/5/assignments" \
 
 ---
 
+### `POST /courses/refresh-status`
+Manually trigger automatic status transitions based on current date (e.g., `Upcoming` → `Active`, `Active` → `Completed`). Available to `Admin` and `Teacher`.
+
+**curl:**
+```bash
+curl -X POST "http://localhost:8000/courses/refresh-status" \
+  -H "Authorization: Bearer <admin_token>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "message": "Course statuses updated"
+}
+```
+
+---
+
 ## Enrollments
 
 ### `POST /enrollments/enroll`
-Enroll logged-in student into a course (student ID from token).
+Enroll logged-in student into a course (student ID from token).  
+**Requires:** Course status = `Upcoming`.
 
 **curl:**
 ```bash
@@ -454,7 +481,7 @@ curl -X POST "http://localhost:8000/enrollments/enroll" \
 ---
 
 ### `POST /enrollments/cancel`
-Cancel an enrollment (student can cancel only own, admin any).
+Cancel an enrollment (student can cancel only own, admin any). Triggers refund.
 
 **curl:**
 ```bash
@@ -560,7 +587,7 @@ curl -X POST "http://localhost:8000/assignments/grade" \
 ---
 
 ### `POST /assignments/create`
-Create a new assignment (teacher only for own course).
+Create a new assignment (teacher only for own course). Only allowed if course is not `Completed`/`Cancelled`.
 
 **curl:**
 ```bash
@@ -589,7 +616,7 @@ curl -X POST "http://localhost:8000/assignments/create" \
 ---
 
 ### `PUT /assignments/update/{assignment_id}`
-Update an assignment (teacher only for own course).
+Update an assignment (teacher only for own course). Course must not be finished.
 
 **curl:**
 ```bash
@@ -614,7 +641,8 @@ curl -X PUT "http://localhost:8000/assignments/update/6" \
 ---
 
 ### `DELETE /assignments/delete/{assignment_id}`
-Delete an assignment (only if no submissions exist, teacher only for own course).
+Delete an assignment (teacher only for own course).  
+**Note:** Even if submissions exist, the assignment can be deleted; the system will recalculate course final scores and student GPAs automatically.
 
 **curl:**
 ```bash
@@ -632,8 +660,8 @@ curl -X DELETE "http://localhost:8000/assignments/delete/6" \
 
 ---
 
-### `GET /submissions/` (was `/submissions/list`)
-Teacher gets list of submissions for their courses (with filters).
+### `GET /submissions/`
+Teacher gets list of submissions for their courses (with optional filters).
 
 **curl:**
 ```bash
@@ -701,7 +729,8 @@ curl -X POST "http://localhost:8000/attendance/record" \
 ## Certificates
 
 ### `POST /certificates/issue`
-Issue certificates to eligible students (teacher only for own course, or admin).
+Issue certificates to eligible students (teacher only for own course, or admin).  
+Eligibility: enrollment `Successful`, final score ≥ 10, course `Completed`, end date passed.
 
 **curl:**
 ```bash
@@ -720,6 +749,106 @@ curl -X POST "http://localhost:8000/certificates/issue?course_id=1" \
     }
   ]
 }
+```
+
+---
+
+## Announcements (NEW)
+
+### `POST /announcements/?course_id={course_id}`
+Post an announcement for a course (teacher only for own course, not allowed for `Completed`/`Cancelled` courses).
+
+**curl:**
+```bash
+curl -X POST "http://localhost:8000/announcements/?course_id=5" \
+  -H "Authorization: Bearer <teacher_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Important Update",
+    "content": "The final exam will be on July 15."
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "AnnouncementID": 7,
+    "Message": "Announcement created successfully."
+  }
+}
+```
+
+---
+
+### `PUT /announcements/{announcement_id}`
+Update an announcement (teacher only for own course, course not finished).
+
+**curl:**
+```bash
+curl -X PUT "http://localhost:8000/announcements/7" \
+  -H "Authorization: Bearer <teacher_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Updated: Exam Date",
+    "content": "The final exam will be on July 20."
+  }'
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Announcement updated"
+}
+```
+
+---
+
+### `DELETE /announcements/{announcement_id}`
+Delete an announcement (teacher only for own course).
+
+**curl:**
+```bash
+curl -X DELETE "http://localhost:8000/announcements/7" \
+  -H "Authorization: Bearer <teacher_token>"
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "Announcement deleted successfully."
+}
+```
+
+---
+
+### `GET /announcements/course/{course_id}`
+Get all announcements for a course. Accessible to:
+- Students enrolled (with `Successful` status) in the course
+- Teacher of the course
+- Admin
+
+**curl:**
+```bash
+curl -X GET "http://localhost:8000/announcements/course/5" \
+  -H "Authorization: Bearer <student_token>"
+```
+
+**Response (200 OK):**
+```json
+[
+  {
+    "AnnouncementID": 7,
+    "CourseID": 5,
+    "Title": "Important Update",
+    "Content": "The final exam will be on July 15.",
+    "CreatedAt": "2025-06-10T15:30:00",
+    "UpdatedAt": "2025-06-10T15:30:00"
+  }
+]
 ```
 
 ---
@@ -1056,7 +1185,7 @@ curl -X GET "http://localhost:8000/reports/monthly-income?year=2025" \
 ---
 
 ### `GET /reports/teacher-ranking`
-Rank teachers based on a criterion.
+Rank teachers based on a criterion (`Income`, `Grades`, `Courses` – defaults to `Income`).
 
 **curl:**
 ```bash

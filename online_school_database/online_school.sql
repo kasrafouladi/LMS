@@ -1783,17 +1783,24 @@ DELIMITER ;
 -- SECURITY ROLES
 -- =============================================================================
 
+-- =============================================================================
+-- UPDATED SECURITY ROLES (logical permissions for students)
+-- =============================================================================
+
 CREATE ROLE IF NOT EXISTS AdminRole;
 CREATE ROLE IF NOT EXISTS TeacherRole;
 CREATE ROLE IF NOT EXISTS StudentRole;
 
 GRANT ALL PRIVILEGES ON OnlineSchoolDB.* TO AdminRole;
+
+-- TeacherRole: all grading, attendance, certificate, course management, announcements, assignments, and relevant views
 GRANT EXECUTE ON PROCEDURE sp_GradeSubmission TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_RecordAttendance TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_IssueCertificatesForCourse TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_UpdateCourseStatus TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportTeacherIncome TO TeacherRole;
+GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO TeacherRole;  -- teachers can also see top students
 GRANT EXECUTE ON PROCEDURE sp_CreateAnnouncement TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_UpdateAnnouncement TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_DeleteAnnouncement TO TeacherRole;
@@ -1806,14 +1813,29 @@ GRANT SELECT ON vw_CourseStatistics TO TeacherRole;
 GRANT SELECT ON vw_StudentTranscript TO TeacherRole;
 GRANT SELECT ON vw_StudentCertificates TO TeacherRole;
 
+-- StudentRole: enrollment, submission, viewing their own grades/attendance, viewing course list/details,
+-- viewing public reports (top students, popular courses), and announcements of enrolled courses
 GRANT EXECUTE ON PROCEDURE sp_EnrollStudentInCourse TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_SubmitAssignment TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportCourseGrades TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportAttendance TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_GetAnnouncementsByCourse TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO StudentRole;      -- students can see top students
+GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO StudentRole;   -- students can see popular courses
+GRANT EXECUTE ON PROCEDURE sp_GetCourses TO StudentRole;             -- students need to list courses
+GRANT EXECUTE ON PROCEDURE sp_GetCourseDetails TO StudentRole;       -- view course details
+GRANT EXECUTE ON PROCEDURE sp_GetAssignmentsByCourse TO StudentRole; -- view assignments after enrollment
+GRANT EXECUTE ON PROCEDURE sp_GetStudentPayments TO StudentRole;     -- view own payments
+GRANT EXECUTE ON PROCEDURE sp_GetStudentGrades TO StudentRole;       -- view own grades
 GRANT SELECT ON vw_StudentTranscript TO StudentRole;
 GRANT SELECT ON vw_StudentCertificates TO StudentRole;
 GRANT SELECT ON vw_CourseStatistics TO StudentRole;
+
+-- Note: Students do NOT have access to:
+--   sp_ReportTeacherIncome, vw_TeacherDashboard, sp_IssueCertificatesForCourse, sp_UpdateCourseStatus,
+--   sp_CreateAssignment, sp_UpdateAssignment, sp_DeleteAssignment,
+--   sp_CreateAnnouncement, sp_UpdateAnnouncement, sp_DeleteAnnouncement,
+--   sp_GradeSubmission, sp_RecordAttendance, sp_GetCourseStudents (student list)
 
 -- =============================================================================
 -- TEST CASES (unchanged from original)

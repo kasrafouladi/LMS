@@ -44,7 +44,7 @@ class EnrollRequest(BaseModel):
 
 class SubmitAssignmentRequest(BaseModel):
     assignment_id: int
-    file_url: str = Field(..., max_length=500)
+    file_url: str = Field(..., max_length=2048)  # افزایش طول به 2048 برای هماهنگی با دیتابیس
     # student_id حذف شد – از توکن گرفته می‌شود
 
 class GradeSubmissionRequest(BaseModel):

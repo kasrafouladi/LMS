@@ -78,6 +78,7 @@ curl -X GET "http://localhost:8000/auth/me" \
   -H "Authorization: Bearer <token>"
 ```
 
+
 **Response (200 OK):**
 ```json
 {

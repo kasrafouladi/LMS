@@ -1,7 +1,7 @@
 -- =============================================================================
--- Online School Management System (MySQL) - FINAL VERSION v5
+-- Online School Management System (MySQL) - FINAL VERSION v5.2 (works)
 -- =============================================================================
--- Fully normalized, standard SQL, no bugs, production-ready.
+-- Fixed: DEFAULT (CURDATE()) for HireDate in Teacher table (parentheses required)
 -- =============================================================================
 
 DROP DATABASE IF EXISTS OnlineSchoolDB;
@@ -39,7 +39,7 @@ CREATE TABLE Student (
 CREATE TABLE Teacher (
     TeacherID INT NOT NULL PRIMARY KEY,
     Expertise VARCHAR(200) NOT NULL,
-    HireDate DATE NOT NULL DEFAULT CURRENT_DATE,
+    HireDate DATE NOT NULL DEFAULT (CURDATE()),
     TotalIncome DECIMAL(18,2) NOT NULL DEFAULT 0,
     CONSTRAINT FK_Teacher_User FOREIGN KEY (TeacherID) REFERENCES `User`(UserID) ON DELETE RESTRICT,
     CONSTRAINT CK_Teacher_TotalIncome CHECK (TotalIncome >= 0)
@@ -309,13 +309,14 @@ ALTER TABLE FinancialReportLog AUTO_INCREMENT = 1;
 ALTER TABLE Announcement AUTO_INCREMENT = 6;
 
 -- =============================================================================
--- FUNCTION (without DETERMINISTIC)
+-- FUNCTION (without DETERMINISTIC, with READS SQL DATA)
 -- =============================================================================
 
 DELIMITER //
 
 CREATE FUNCTION fn_CalculateStudentGPA(p_StudentID INT)
 RETURNS DECIMAL(4,2)
+READS SQL DATA
 BEGIN
     DECLARE v_Result DECIMAL(4,2);
     SELECT COALESCE(AVG(FinalScore), 0) INTO v_Result
@@ -329,7 +330,7 @@ END //
 DELIMITER ;
 
 -- =============================================================================
--- PROCEDURES
+-- PROCEDURES (all fixes applied)
 -- =============================================================================
 
 DELIMITER //

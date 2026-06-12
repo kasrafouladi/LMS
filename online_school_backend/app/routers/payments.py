@@ -36,7 +36,7 @@ def get_my_payments(current_user: dict = Depends(role_required(["Student", "Admi
 def list_all_payments_admin(
     student_id: Optional[int] = Query(None),
     course_id: Optional[int] = Query(None),
-    status: Optional[str] = Query(None, regex="^(Pending|Successful|Failed|Refunded)$"),
+    status: Optional[str] = Query(None, pattern="^(Pending|Successful|Failed|Refunded)$"),
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
     current_user: dict = Depends(role_required(["Admin"]))

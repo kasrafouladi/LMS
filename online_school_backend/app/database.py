@@ -27,7 +27,8 @@ def get_pool():
                 user=os.getenv("DB_USER", "root"),
                 password=os.getenv("DB_PASSWORD", ""),
                 database=os.getenv("DB_NAME", "OnlineSchoolDB"),
-                use_pure=True
+                use_pure=True,
+                autocommit=True  # <-- FIX: auto-commit each statement/procedure call
             )
             logger.info("Connection pool created successfully")
         except Exception as e:
@@ -38,7 +39,9 @@ def get_pool():
 def get_connection():
     try:
         pool = get_pool()
-        return pool.get_connection()
+        conn = pool.get_connection()
+        conn.autocommit = True  # <-- FIX: ensure each pooled connection also has autocommit on
+        return conn
     except Exception as e:
         logger.error(f"Database connection error: {e}")
         raise HTTPException(status_code=500, detail=f"Database connection error: {str(e)}")
@@ -67,10 +70,14 @@ def call_stored_procedure(proc_name: str, params: dict = None, return_single: bo
                 # برای دستورات UPDATE/INSERT که ردیف ندارند، یک لیست خالی اضافه می‌کنیم
                 all_results.append([])
 
+        # FIX: commit so writes performed inside the procedure are persisted
+        conn.commit()
+
         if return_single and all_results and all_results[0]:
             return all_results[0][0]   # اولین ردیف از اولین result set
         return all_results
     except mysql.connector.Error as err:
+        conn.rollback()
         logger.error(f"Procedure error: {err}")
         raise HTTPException(status_code=500, detail=f"Procedure error: {err}")
     finally:
@@ -89,11 +96,17 @@ def execute_query(query: str, params: dict = None):
             cursor.execute(query, list(params.values()))
         else:
             cursor.execute(query)
-        
+
         if cursor.description:
-            return cursor.fetchall()
-        return []
+            rows = cursor.fetchall()
+        else:
+            rows = []
+
+        # FIX: commit so UPDATE/INSERT/DELETE raw queries are persisted
+        conn.commit()
+        return rows
     except mysql.connector.Error as err:
+        conn.rollback()
         logger.error(f"Query error: {err}")
         raise HTTPException(status_code=500, detail=f"Query error: {err}")
     finally:

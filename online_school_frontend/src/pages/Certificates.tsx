@@ -6,19 +6,23 @@ import { useState } from 'react';
 import { ApiError } from '../api/client';
 
 export default function Certificates() {
-  const { isAdmin, isTeacher } = useAuth();
+  const { isAdmin, isTeacher, isStudent } = useAuth();
   const { data: certs, loading, error, refetch } = useApi(() => getStudentCertificates(), []);
-  const { data: courses } = useApi(() => listCourses(), []);
+  const { data: courses } = useApi(() => listCourses({ status: 'Completed' }), []);
   const [selectedCourse, setSelectedCourse] = useState(0);
   const [issuing, setIssuing] = useState(false);
+  const [issueMsg, setIssueMsg] = useState<string | null>(null);
 
   const list = (certs as any[]) ?? [];
 
   async function handleIssue() {
-    if (!confirm(`گواهی برای ${selectedCourse ? 'دوره انتخاب‌شده' : 'همه دوره‌ها'} صادر شود؟`)) return;
+    if (!confirm(`گواهی برای ${selectedCourse ? 'دوره انتخاب‌شده' : 'همه دوره‌های واجد شرایط'} صادر شود؟`)) return;
     setIssuing(true);
+    setIssueMsg(null);
     try {
-      await issueCertificates(selectedCourse || undefined);
+      const res: any = await issueCertificates(selectedCourse || undefined);
+      const issued = res?.data?.[0]?.CertificatesIssued ?? 0;
+      setIssueMsg(`${issued} گواهی صادر شد.`);
       refetch();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'خطا');
@@ -30,12 +34,14 @@ export default function Certificates() {
       <div className="page-header">
         <div>
           <h1 className="page-title">گواهی‌نامه‌ها</h1>
-          <p className="page-subtitle">گواهی پایان دوره</p>
+          <p className="page-subtitle">
+            {isStudent ? 'گواهی‌های پایان دوره شما' : 'صدور و مشاهده گواهی‌نامه پایان دوره'}
+          </p>
         </div>
         {(isAdmin || isTeacher) && (
           <div className="flex gap-3 items-center">
-            <select className="form-select" style={{ width: 200 }} value={selectedCourse} onChange={e => setSelectedCourse(+e.target.value)}>
-              <option value={0}>همه دوره‌ها</option>
+            <select className="form-select" style={{ width: 220 }} value={selectedCourse} onChange={e => setSelectedCourse(+e.target.value)}>
+              <option value={0}>همه دوره‌های تکمیل‌شده</option>
               {(courses ?? []).map((c: any) => <option key={c.CourseID} value={c.CourseID}>{c.Title}</option>)}
             </select>
             <button className="btn btn-primary" onClick={handleIssue} disabled={issuing}>
@@ -44,6 +50,12 @@ export default function Certificates() {
           </div>
         )}
       </div>
+
+      {issueMsg && (
+        <div className="card animate-fade-in" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-success-bg)', border: '1px solid #a7f3d0', color: '#065f46' }}>
+          ✅ {issueMsg}
+        </div>
+      )}
 
       {/* Card grid */}
       {!loading && list.length > 0 && (
@@ -84,13 +96,13 @@ export default function Certificates() {
         ) : (
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table className="data-table">
-              <thead><tr><th>دانشجو</th><th>دوره</th><th>تاریخ صدور</th><th>کد گواهی</th></tr></thead>
+              <thead><tr>{!isStudent && <th>دانشجو</th>}<th>دوره</th><th>تاریخ صدور</th><th>کد گواهی</th></tr></thead>
               <tbody>
                 {list.length === 0 ? (
-                  <tr><td colSpan={4}><div className="empty-state"><div className="empty-icon">🏆</div><h3>گواهی‌ای صادر نشده</h3></div></td></tr>
+                  <tr><td colSpan={isStudent ? 3 : 4}><div className="empty-state"><div className="empty-icon">🏆</div><h3>گواهی‌ای صادر نشده</h3></div></td></tr>
                 ) : list.map((c: any, i: number) => (
                   <tr key={c.CertificateID ?? i}>
-                    <td style={{ fontWeight: 600 }}>{c.StudentName ?? c.StudentID}</td>
+                    {!isStudent && <td style={{ fontWeight: 600 }}>{c.StudentName ?? c.StudentID}</td>}
                     <td style={{ color: 'var(--gray-600)' }}>{c.CourseTitle ?? c.CourseID}</td>
                     <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
                       {c.IssueDate ? new Date(c.IssueDate).toLocaleDateString('fa-IR') : '—'}

@@ -7,34 +7,55 @@ import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Courses from './pages/Courses';
+import CourseDetail from './pages/CourseDetail';
 import Enrollments from './pages/Enrollments';
 import Assignments from './pages/Assignments';
 import Payments from './pages/Payments';
 import Attendance from './pages/Attendance';
 import Certificates from './pages/Certificates';
+import Transcript from './pages/Transcript';
+import Announcements from './pages/Announcements';
+import Reports from './pages/Reports';
 import { StudentsPage, TeachersPage } from './pages/StudentsTeachers';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageKey>('dashboard');
+  const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+
+  function openCourse(id: number) {
+    setSelectedCourseId(id);
+    setActivePage('courses');
+  }
+
+  function navigateTo(page: PageKey) {
+    if (page !== 'courses') setSelectedCourseId(null);
+    setActivePage(page);
+  }
 
   function renderPage() {
     switch (activePage) {
-      case 'dashboard':    return <Dashboard />;
+      case 'dashboard':    return <Dashboard onOpenCourse={openCourse} />;
       case 'users':        return <Users />;
       case 'students':     return <StudentsPage />;
       case 'teachers':     return <TeachersPage />;
-      case 'courses':      return <Courses />;
-      case 'enrollments':  return <Enrollments />;
+      case 'courses':
+        return selectedCourseId
+          ? <CourseDetail courseId={selectedCourseId} onBack={() => setSelectedCourseId(null)} />
+          : <Courses onOpenCourse={openCourse} />;
+      case 'enrollments':  return <Enrollments onOpenCourse={openCourse} />;
       case 'assignments':  return <Assignments />;
       case 'payments':     return <Payments />;
       case 'attendance':   return <Attendance />;
       case 'certificates': return <Certificates />;
-      default:             return <Dashboard />;
+      case 'transcript':   return <Transcript onOpenCourse={openCourse} />;
+      case 'announcements':return <Announcements />;
+      case 'reports':      return <Reports />;
+      default:             return <Dashboard onOpenCourse={openCourse} />;
     }
   }
 
   return (
-    <Layout activePage={activePage} onNavigate={setActivePage}>
+    <Layout activePage={activePage} onNavigate={navigateTo}>
       {renderPage()}
     </Layout>
   );

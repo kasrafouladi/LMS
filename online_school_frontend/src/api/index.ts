@@ -2,7 +2,6 @@ import { request } from './client';
 
 // ─── Enrollments ──────────────────────────────────────────────────────────────
 export function enrollStudent(data: {
-  student_id: number;
   course_id: number;
   amount: number;
   transaction_id?: string;
@@ -18,6 +17,7 @@ export function cancelEnrollment(enrollment_id: number) {
 export function createAssignment(data: {
   course_id: number;
   title: string;
+  description?: string;
   due_date: string;
   max_score: number;
 }) {
@@ -26,7 +26,7 @@ export function createAssignment(data: {
 
 export function updateAssignment(
   assignmentId: number,
-  data: { title?: string; due_date?: string; max_score?: number }
+  data: { title?: string; description?: string; due_date?: string; max_score?: number }
 ) {
   return request(`/assignments/update/${assignmentId}`, { method: 'PUT', body: data });
 }
@@ -37,7 +37,6 @@ export function deleteAssignment(assignmentId: number) {
 
 export function submitAssignment(data: {
   assignment_id: number;
-  student_id: number;
   file_url: string;
 }) {
   return request('/assignments/submit', { method: 'POST', body: data });
@@ -55,7 +54,7 @@ export function getSubmissionsForGrading(params: {
   course_id?: number;
   assignment_id?: number;
 }) {
-  return request('/submissions/list', { params });
+  return request('/submissions/', { params });
 }
 
 // ─── Attendance ───────────────────────────────────────────────────────────────
@@ -98,6 +97,10 @@ export function reportFailedPayments(start_date: string, end_date: string) {
   return request('/reports/failed-payments', { params: { start_date, end_date } });
 }
 
+export function reportCourseGrades(course_id?: number) {
+  return request('/reports/course-grades', { params: { course_id } });
+}
+
 export function reportMonthlyIncome(year?: number) {
   return request('/reports/monthly-income', { params: { year } });
 }
@@ -129,4 +132,49 @@ export function getFinancialSummary() {
 
 export function getStudentCertificates() {
   return request('/views/student-certificates');
+}
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+export function getCourseAnnouncements(courseId: number) {
+  return request<any[]>(`/announcements/course/${courseId}`);
+}
+
+export function createAnnouncement(courseId: number, data: { title: string; content: string }) {
+  return request('/announcements/', { method: 'POST', body: data, params: { course_id: courseId } });
+}
+
+export function updateAnnouncement(announcementId: number, data: { title?: string; content?: string }) {
+  return request(`/announcements/${announcementId}`, { method: 'PUT', body: data });
+}
+
+export function deleteAnnouncement(announcementId: number) {
+  return request(`/announcements/${announcementId}`, { method: 'DELETE' });
+}
+
+// ─── Payments (admin retry / payment detail) ─────────────────────────────────
+export function retryPayment(paymentId: number) {
+  return request(`/payments/retry/${paymentId}`, { method: 'POST' });
+}
+
+export function getPaymentDetail(paymentId: number) {
+  return request(`/payments/${paymentId}`);
+}
+
+export function getAllPaymentsAdmin(params?: {
+  student_id?: number;
+  course_id?: number;
+  status?: string;
+  start_date?: string;
+  end_date?: string;
+}) {
+  return request('/payments/admin/all', { params });
+}
+
+export function getPaymentSummaryAdmin() {
+  return request('/payments/admin/summary');
+}
+
+// ─── Course refresh-status ────────────────────────────────────────────────────
+export function refreshCourseStatus() {
+  return request('/courses/refresh-status', { method: 'POST' });
 }

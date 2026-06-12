@@ -5,7 +5,8 @@ import './Sidebar.css';
 export type PageKey =
   | 'dashboard' | 'users' | 'students' | 'teachers'
   | 'courses' | 'enrollments' | 'assignments'
-  | 'payments' | 'attendance' | 'certificates';
+  | 'payments' | 'attendance' | 'certificates'
+  | 'transcript' | 'announcements' | 'reports';
 
 interface NavItem {
   id: PageKey;
@@ -15,16 +16,19 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard',    label: 'داشبورد',       icon: '📊' },
-  { id: 'users',        label: 'کاربران',        icon: '👥',  roles: ['Admin'] },
-  { id: 'students',     label: 'دانشجویان',      icon: '🎓',  roles: ['Admin', 'Teacher'] },
-  { id: 'teachers',     label: 'مدرسان',         icon: '👨‍🏫', roles: ['Admin'] },
-  { id: 'courses',      label: 'دوره‌ها',         icon: '📚' },
-  { id: 'enrollments',  label: 'ثبت‌نام',         icon: '📋',  roles: ['Student'] },
-  { id: 'assignments',  label: 'تکالیف',         icon: '📝' },
-  { id: 'payments',     label: 'پرداخت‌ها',       icon: '💳' },
-  { id: 'attendance',   label: 'حضور و غیاب',    icon: '✅' },
-  { id: 'certificates', label: 'گواهی‌نامه‌ها',   icon: '🏆' },
+  { id: 'dashboard',     label: 'داشبورد',         icon: '📊' },
+  { id: 'users',         label: 'کاربران',          icon: '👥',  roles: ['Admin'] },
+  { id: 'students',      label: 'دانشجویان',        icon: '🎓',  roles: ['Admin', 'Teacher'] },
+  { id: 'teachers',      label: 'مدرسان',           icon: '👨‍🏫', roles: ['Admin'] },
+  { id: 'courses',       label: 'دوره‌ها',           icon: '📚' },
+  { id: 'enrollments',   label: 'ثبت‌نام',           icon: '📋',  roles: ['Student'] },
+  { id: 'transcript',    label: 'کارنامه',          icon: '📜',  roles: ['Student', 'Teacher', 'Admin'] },
+  { id: 'assignments',   label: 'تکالیف',           icon: '📝' },
+  { id: 'announcements', label: 'اطلاعیه‌ها',        icon: '📢' },
+  { id: 'payments',      label: 'پرداخت‌ها',         icon: '💳' },
+  { id: 'attendance',    label: 'حضور و غیاب',      icon: '✅' },
+  { id: 'certificates',  label: 'گواهی‌نامه‌ها',     icon: '🏆' },
+  { id: 'reports',       label: 'گزارش‌ها',          icon: '📈',  roles: ['Admin', 'Teacher'] },
 ];
 
 interface SidebarProps {

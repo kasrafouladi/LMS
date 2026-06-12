@@ -5,7 +5,8 @@ const PAGE_TITLES: Record<string, string> = {
   dashboard: 'داشبورد', users: 'مدیریت کاربران', students: 'دانشجویان',
   teachers: 'مدرسان', courses: 'دوره‌ها', enrollments: 'ثبت‌نام‌ها',
   assignments: 'تکالیف', payments: 'پرداخت‌ها', attendance: 'حضور و غیاب',
-  certificates: 'گواهی‌نامه‌ها',
+  certificates: 'گواهی‌نامه‌ها', transcript: 'کارنامه تحصیلی',
+  announcements: 'اطلاعیه‌ها', reports: 'گزارش‌ها',
 };
 
 const ROLE_LABEL: Record<string, string> = { Admin: 'مدیر', Teacher: 'مدرس', Student: 'دانشجو' };

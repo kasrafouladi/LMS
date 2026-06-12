@@ -3,6 +3,7 @@ import Modal from '../components/ui/Modal';
 import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { listCourses, createCourse, updateCourse, deleteCourse, type Course } from '../api/courses';
+import { refreshCourseStatus } from '../api/index';
 import { ApiError } from '../api/client';
 
 const EMPTY_FORM = {
@@ -10,7 +11,9 @@ const EMPTY_FORM = {
   start_date: '', end_date: '',
 };
 
-function formatPrice(n: number) { return n?.toLocaleString('fa-IR') + ' ت'; }
+const STATUS_OPTIONS = ['Draft', 'Upcoming', 'Active', 'Completed', 'Cancelled'];
+
+function formatPrice(n: number) { return (n ?? 0)?.toLocaleString('fa-IR') + ' ت'; }
 
 function Skeleton() {
   return (
@@ -20,18 +23,25 @@ function Skeleton() {
   );
 }
 
-export default function Courses() {
-  const { isAdmin, isTeacher } = useAuth();
+interface CoursesProps {
+  onOpenCourse: (id: number) => void;
+}
+
+export default function Courses({ onOpenCourse }: CoursesProps) {
+  const { isAdmin, isTeacher, isStudent } = useAuth();
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editCourse, setEditCourse] = useState<Course | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [statusForm, setStatusForm] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   const { data: courses, loading, error, refetch } = useApi(
-    () => listCourses({ search: search || undefined }),
-    [search]
+    () => listCourses({ search: search || undefined, status: (statusFilter as any) || undefined }),
+    [search, statusFilter]
   );
 
   function openAdd() { setEditCourse(null); setForm(EMPTY_FORM); setSaveError(null); setModalOpen(true); }
@@ -42,6 +52,7 @@ export default function Courses() {
       capacity: c.Capacity, start_date: c.StartDate?.slice(0, 10) ?? '',
       end_date: c.EndDate?.slice(0, 10) ?? '',
     });
+    setStatusForm(c.Status ?? '');
     setSaveError(null);
     setModalOpen(true);
   }
@@ -51,7 +62,12 @@ export default function Courses() {
     setSaving(true); setSaveError(null);
     try {
       if (editCourse) {
-        await updateCourse(editCourse.CourseID, form);
+        await updateCourse(editCourse.CourseID, {
+          ...form,
+          start_date: form.start_date ? new Date(form.start_date).toISOString() : undefined,
+          end_date: form.end_date ? new Date(form.end_date).toISOString() : undefined,
+          status: statusForm || undefined,
+        });
       } else {
         await createCourse({
           ...form,
@@ -74,6 +90,16 @@ export default function Courses() {
     catch (err) { alert(err instanceof ApiError ? err.message : 'خطا'); }
   }
 
+  async function handleRefreshStatus() {
+    setRefreshing(true);
+    try {
+      await refreshCourseStatus();
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'خطا');
+    } finally { setRefreshing(false); }
+  }
+
   const filtered = (courses ?? []).filter(c =>
     !search || c.Title?.includes(search) || c.TeacherName?.includes(search)
   );
@@ -83,22 +109,37 @@ export default function Courses() {
       <div className="page-header">
         <div>
           <h1 className="page-title">مدیریت دوره‌ها</h1>
-          <p className="page-subtitle">دوره‌های آموزشی ارائه‌شده</p>
+          <p className="page-subtitle">
+            {isStudent ? 'دوره‌های آموزشی قابل ثبت‌نام و دوره‌های شما' : 'دوره‌های آموزشی ارائه‌شده'}
+          </p>
         </div>
-        {(isAdmin || isTeacher) && (
-          <button className="btn btn-primary" onClick={openAdd}>+ افزودن دوره</button>
-        )}
+        <div className="flex gap-2">
+          {(isAdmin || isTeacher) && (
+            <button className="btn btn-secondary" onClick={handleRefreshStatus} disabled={refreshing}>
+              {refreshing ? '...' : '🔄 به‌روزرسانی وضعیت'}
+            </button>
+          )}
+          {isTeacher && (
+            <button className="btn btn-primary" onClick={openAdd}>+ افزودن دوره</button>
+          )}
+        </div>
       </div>
 
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ flexWrap: 'wrap', gap: 'var(--space-3)' }}>
           <span className="card-title">
             {loading ? 'در حال بارگذاری...' : `لیست دوره‌ها (${filtered.length})`}
           </span>
-          <div className="search-bar">
-            <span className="search-icon">🔍</span>
-            <input className="form-input" placeholder="جستجو..." value={search}
-              onChange={e => setSearch(e.target.value)} style={{ width: 220, paddingRight: '2.25rem' }} />
+          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            <select className="form-select" style={{ width: 140 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">همه وضعیت‌ها</option>
+              {STATUS_OPTIONS.filter(s => s !== 'Draft').map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <div className="search-bar">
+              <span className="search-icon">🔍</span>
+              <input className="form-input" placeholder="جستجو..." value={search}
+                onChange={e => setSearch(e.target.value)} style={{ width: 220, paddingRight: '2.25rem' }} />
+            </div>
           </div>
         </div>
 
@@ -116,7 +157,7 @@ export default function Courses() {
                 <tr>
                   <th>عنوان</th><th>مدرس</th><th>قیمت</th>
                   <th>شروع</th><th>پایان</th><th>ظرفیت</th><th>وضعیت</th>
-                  {(isAdmin || isTeacher) && <th>عملیات</th>}
+                  <th>عملیات</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +166,7 @@ export default function Courses() {
                 ) : filtered.map(c => {
                   const pct = c.EnrolledCount != null && c.Capacity
                     ? Math.round((c.EnrolledCount / c.Capacity) * 100) : 0;
+                  const canEdit = isAdmin || (isTeacher && c.TeacherID != null);
                   return (
                     <tr key={c.CourseID}>
                       <td>
@@ -149,17 +191,21 @@ export default function Courses() {
                         <span className={`badge ${
                           c.Status === 'Active' ? 'badge-success' :
                           c.Status === 'Upcoming' ? 'badge-info' :
+                          c.Status === 'Draft' ? 'badge-warning' :
                           c.Status === 'Completed' ? 'badge-neutral' : 'badge-danger'
                         }`}>{c.Status ?? '—'}</span>
                       </td>
-                      {(isAdmin || isTeacher) && (
-                        <td>
-                          <div className="flex gap-2">
+                      <td>
+                        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(c.CourseID)}>جزئیات</button>
+                          {canEdit && (
                             <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)}>ویرایش</button>
+                          )}
+                          {canEdit && (
                             <button className="btn btn-danger btn-sm" onClick={() => handleDelete(c.CourseID)}>حذف</button>
-                          </div>
-                        </td>
-                      )}
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -207,6 +253,17 @@ export default function Courses() {
             <input className="form-input" type="date" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} dir="ltr" />
           </div>
         </div>
+        {editCourse && (
+          <div className="form-group">
+            <label className="form-label">وضعیت دوره</label>
+            <select className="form-select" value={statusForm} onChange={e => setStatusForm(e.target.value)}>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)', marginTop: 4 }}>
+              توجه: تغییر وضعیت طبق روند منطقی مجاز است (مثلاً Draft → Upcoming → Active → Completed/Cancelled)
+            </p>
+          </div>
+        )}
       </Modal>
     </div>
   );

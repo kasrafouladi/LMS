@@ -1,37 +1,21 @@
 import { useState } from 'react';
-import Modal from '../components/ui/Modal';
 import { attendanceBadge } from '../components/ui/Badge';
 import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
-import { reportAttendance, recordAttendance } from '../api/index';
+import { reportAttendance } from '../api/index';
 import { listCourses } from '../api/courses';
-import { ApiError } from '../api/client';
 
 export default function Attendance() {
-  const { user, isTeacher, isAdmin } = useAuth();
+  const { user, isTeacher, isAdmin, isStudent } = useAuth();
   const [courseId, setCourseId] = useState<number>(0);
   const [studentId, setStudentId] = useState<number>(user ? parseInt(user.sub) : 0);
   const [searched, setSearched] = useState(false);
-  const [recordModal, setRecordModal] = useState(false);
-  const [recForm, setRecForm] = useState({ student_id: 0, course_id: 0, session_date: '', status: 'Present' as 'Present'|'Absent' });
-  const [saving, setSaving] = useState(false);
 
   const { data: courses } = useApi(() => listCourses(), []);
-  const { data: records, loading, error, refetch } = useApi(
+  const { data: records, loading, error } = useApi(
     () => (searched && courseId && studentId) ? reportAttendance(studentId, courseId) : Promise.resolve([]),
     [searched, courseId, studentId]
   );
-
-  async function handleRecord() {
-    setSaving(true);
-    try {
-      await recordAttendance({ ...recForm, session_date: recForm.session_date });
-      setRecordModal(false);
-      refetch();
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'خطا');
-    } finally { setSaving(false); }
-  }
 
   const list = (records as any[]) ?? [];
   const presentCount = list.filter(r => r.Status === 'Present').length;
@@ -42,11 +26,10 @@ export default function Attendance() {
       <div className="page-header">
         <div>
           <h1 className="page-title">حضور و غیاب</h1>
-          <p className="page-subtitle">ثبت و مشاهده حضور دانشجویان</p>
+          <p className="page-subtitle">
+            {isStudent ? 'مشاهده سابقه حضور شما در دوره‌ها' : 'مشاهده سابقه حضور دانشجویان (ثبت حضور از صفحه جزئیات دوره)'}
+          </p>
         </div>
-        {(isTeacher || isAdmin) && (
-          <button className="btn btn-primary" onClick={() => setRecordModal(true)}>+ ثبت حضور</button>
-        )}
       </div>
 
       {/* Filter */}
@@ -122,36 +105,15 @@ export default function Attendance() {
         </div>
       )}
 
-      <Modal open={recordModal} title="ثبت حضور" onClose={() => setRecordModal(false)}
-        footer={<>
-          <button className="btn btn-primary" onClick={handleRecord} disabled={saving}>{saving ? 'ذخیره...' : 'ثبت'}</button>
-          <button className="btn btn-secondary" onClick={() => setRecordModal(false)}>انصراف</button>
-        </>}>
-        <div className="form-group">
-          <label className="form-label">دوره</label>
-          <select className="form-select" value={recForm.course_id} onChange={e => setRecForm(f => ({ ...f, course_id: +e.target.value }))}>
-            <option value={0}>انتخاب...</option>
-            {(courses ?? []).map((c: any) => <option key={c.CourseID} value={c.CourseID}>{c.Title}</option>)}
-          </select>
+      {!searched && (
+        <div className="empty-state">
+          <div className="empty-icon">✅</div>
+          <h3>یک دوره را انتخاب کنید</h3>
+          <p style={{ color: 'var(--gray-400)', marginTop: 4 }}>
+            {isAdmin || isTeacher ? 'برای ثبت حضور جدید، به صفحه جزئیات دوره مراجعه کنید' : 'برای مشاهده سابقه حضور خود، دوره را انتخاب و روی «مشاهده» کلیک کنید'}
+          </p>
         </div>
-        <div className="form-group">
-          <label className="form-label">شناسه دانشجو</label>
-          <input className="form-input" type="number" value={recForm.student_id} onChange={e => setRecForm(f => ({ ...f, student_id: +e.target.value }))} dir="ltr" />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
-          <div className="form-group">
-            <label className="form-label">تاریخ جلسه</label>
-            <input className="form-input" type="date" value={recForm.session_date} onChange={e => setRecForm(f => ({ ...f, session_date: e.target.value }))} dir="ltr" />
-          </div>
-          <div className="form-group">
-            <label className="form-label">وضعیت</label>
-            <select className="form-select" value={recForm.status} onChange={e => setRecForm(f => ({ ...f, status: e.target.value as any }))}>
-              <option value="Present">حاضر</option>
-              <option value="Absent">غایب</option>
-            </select>
-          </div>
-        </div>
-      </Modal>
+      )}
     </div>
   );
 }

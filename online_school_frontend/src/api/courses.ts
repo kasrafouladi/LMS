@@ -14,6 +14,32 @@ export interface Course {
   Status?: string;
 }
 
+export interface CourseAssignment {
+  AssignmentID: number;
+  Title: string;
+  Description?: string;
+  DueDate: string;
+  MaxScore: number;
+  SubmissionID?: number | null;
+  SubmissionDate?: string | null;
+  SubmissionURL?: string | null;
+  Score?: number | null;
+  Feedback?: string | null;
+  SubmissionStatus?: 'Submitted' | 'Missed' | 'Pending';
+  SubmissionCount?: number;
+}
+
+export interface CourseStudent {
+  StudentID: number;
+  FullName: string;
+  Email: string;
+  EnrollmentDate: string;
+  EnrollmentStatus: string;
+  FinalScore?: number | null;
+  ProgressPercent: number;
+  GPA?: number;
+}
+
 export function listCourses(params?: {
   status?: string;
   teacher_id?: number;
@@ -25,7 +51,7 @@ export function listCourses(params?: {
 }
 
 export function getCourseDetails(courseId: number) {
-  return request<{ course: Course; assignments: unknown[]; students: unknown[] }>(
+  return request<{ course: Course; assignments: CourseAssignment[]; students: CourseStudent[] }>(
     `/courses/${courseId}`
   );
 }
@@ -61,5 +87,5 @@ export function deleteCourse(courseId: number) {
 }
 
 export function getCourseAssignments(courseId: number) {
-  return request(`/courses/${courseId}/assignments`);
+  return request<CourseAssignment[]>(`/courses/${courseId}/assignments`);
 }

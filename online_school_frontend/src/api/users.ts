@@ -17,7 +17,7 @@ export function getMyPayments() {
 }
 
 export function getMyGrades() {
-  return request<{ courses: unknown[]; assignments: unknown[] }>('/users/grades');
+  return request<{ courses: any[]; assignments: any[] }>('/users/grades');
 }
 
 // ── Admin ──────────────────────────────────────────────────────────────────────
@@ -31,3 +31,6 @@ export function updateUserStatus(
 ) {
   return request(`/users/admin/users/${userId}/status`, { method: 'PUT', body: data });
 }
+
+// Re-export grading helpers for convenience (used by Assignments page)
+export { gradeSubmission, getSubmissionsForGrading, createAssignment, updateAssignment, deleteAssignment } from './index';

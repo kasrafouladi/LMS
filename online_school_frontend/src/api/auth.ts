@@ -15,13 +15,30 @@ export interface MeResponse {
 }
 
 export async function login(email: string, password: string): Promise<LoginResponse> {
-  const data = await request<LoginResponse>('/auth/login', {
+  const raw = await request<unknown>('/auth/login', {
     method: 'POST',
     body: { email, password },
     noAuth: true,
   });
-  saveToken(data.access_token);
-  return data;
+  
+  console.log('LOGIN RAW RESPONSE:', raw, typeof raw);
+  
+  const token = typeof raw === 'string' ? raw : (raw as any).access_token;
+  
+  if (!token) throw new Error('توکن دریافت نشد');
+  
+  saveToken(token);
+  
+  let role: 'Admin' | 'Teacher' | 'Student' = 'Student';
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    console.log('JWT PAYLOAD:', payload);
+    role = payload.role;
+  } catch {
+    console.error('خطا در decode توکن');
+  }
+  
+  return { access_token: token, token_type: 'bearer', role };
 }
 
 export async function register(payload: {
@@ -32,7 +49,11 @@ export async function register(payload: {
   phone_number?: string;
   date_of_birth?: string;
 }) {
-  return request('/auth/register', { method: 'POST', body: payload, noAuth: true });
+  return request('/auth/register', { 
+    method: 'POST', 
+    body: payload, 
+    noAuth: true 
+  });
 }
 
 export async function getMe(): Promise<MeResponse> {

@@ -3,7 +3,10 @@ import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../api/client';
 import './Login.css';
 
-export default function LoginPage() {
+interface LoginPageProps {
+  onShowRegister: () => void;
+}
+export default function LoginPage({ onShowRegister }: LoginPageProps) {  
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -84,6 +87,13 @@ export default function LoginPage() {
             )}
           </button>
         </form>
+
+        <div className="login-hint">
+          <span>حساب کاربری ندارید؟ </span>
+          <a href="#" onClick={e => { e.preventDefault(); onShowRegister(); }} style={{ color: 'var(--brand-400)', fontWeight: 600 }}>
+           ثبت‌نام کنید
+          </a>
+        </div>
 
         <div className="login-hint">
           <span>دسترسی آزمایشی: </span>

@@ -21,7 +21,7 @@ export function listCourses(params?: {
   max_price?: number;
   search?: string;
 }) {
-  return request<Course[]>('/courses', { params });
+  return request<Course[]>('/courses/', { params });
 }
 
 export function getCourseDetails(courseId: number) {
@@ -38,7 +38,7 @@ export function createCourse(data: {
   end_date: string;
   capacity: number;
 }) {
-  return request('/courses', { method: 'POST', body: data });
+  return request('/courses/', { method: 'POST', body: data });
 }
 
 export function updateCourse(

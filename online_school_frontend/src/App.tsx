@@ -3,7 +3,7 @@ import { useAuth } from './context/AuthContext';
 import Layout from './components/layout/Layout';
 import type { PageKey } from './components/layout/Sidebar';
 import LoginPage from './pages/Login';
-
+import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Users from './pages/Users';
 import Courses from './pages/Courses';
@@ -42,7 +42,7 @@ function AppContent() {
 
 export default function App() {
   const { user, loading } = useAuth();
-
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   if (loading) {
     return (
       <div style={{
@@ -55,7 +55,14 @@ export default function App() {
     );
   }
 
-  if (!user) return <LoginPage />;
+  if (!user) {
+  return authView === 'login'
+    ? <LoginPage onShowRegister={() => setAuthView('register')} />
+    : <RegisterPage
+        onSuccess={() => setAuthView('login')}
+        onBackToLogin={() => setAuthView('login')}
+      />;
+  }
 
   return <AppContent />;
 }

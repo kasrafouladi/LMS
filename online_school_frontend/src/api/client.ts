@@ -2,8 +2,7 @@
 // تمام درخواست‌ها از اینجا می‌گذرند.
 // توکن JWT از localStorage خوانده می‌شود و به هدر Authorization اضافه می‌شه.
 
-export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
-
+export const API_BASE = 'http://188.211.104.242:8000';
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -28,13 +27,14 @@ type RequestOptions = {
   body?: unknown;
   params?: Record<string, string | number | boolean | null | undefined>;
   noAuth?: boolean;
+  isFormData?: boolean;
 };
 
 export async function request<T = unknown>(
   path: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { method = 'GET', body, params, noAuth = false } = options;
+  const { method = 'GET', body, params, noAuth = false, isFormData = false } = options;
 
   // Build URL with query params
   let url = `${API_BASE}${path}`;
@@ -46,24 +46,37 @@ export async function request<T = unknown>(
     if (qs) url += `?${qs}`;
   }
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
+  
+  // فقط برای درخواست‌های غیر FormData هدر Content-Type رو تنظیم کن
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
 
   if (!noAuth) {
     const token = getToken();
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
+  const fetchOptions: RequestInit = {
     method,
     headers,
-    body: body != null ? JSON.stringify(body) : undefined,
-  });
+    redirect: 'follow',
+  };
+
+  if (body != null) {
+    if (isFormData && body instanceof URLSearchParams) {
+      fetchOptions.body = body;
+    } else {
+      fetchOptions.body = JSON.stringify(body);
+    }
+  }
+
+  const res = await fetch(url, fetchOptions);
 
   if (res.status === 401) {
     clearToken();
-    window.location.href = '/'; // force re-login
+    window.location.href = '/';
   }
 
   if (!res.ok) {

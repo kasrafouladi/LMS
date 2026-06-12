@@ -12,7 +12,7 @@ def _first_result_set(result_sets):
     return result_sets[0] if result_sets else []
 
 @router.get("/top-students")
-def top_students(top_n: int = 10, current_user: dict = Depends(role_required(["Admin", "Teacher"]))):
+def top_students(top_n: int = 10, current_user: dict = Depends(role_required(["Admin", "Teacher", "Student"]))):
     user_id = int(current_user["sub"])
     logger.info(f"User {user_id} requesting top {top_n} students")
     result_sets = call_stored_procedure("sp_ReportTopStudents", {"@TopN": top_n})
@@ -30,7 +30,7 @@ def teacher_income(start_date: str, end_date: str, current_user: dict = Depends(
     return data
 
 @router.get("/popular-courses")
-def popular_courses(current_user: dict = Depends(role_required(["Admin", "Teacher"]))):
+def popular_courses(current_user: dict = Depends(role_required(["Admin", "Teacher", "Student"]))):
     user_id = int(current_user["sub"])
     logger.info(f"User {user_id} requesting popular courses")
     result_sets = call_stored_procedure("sp_ReportPopularCourses")

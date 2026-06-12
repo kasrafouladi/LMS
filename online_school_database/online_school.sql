@@ -1,7 +1,13 @@
 -- =============================================================================
--- Online School Management System (MySQL) - FINAL VERSION v5.2 (works)
+-- Online School Management System (MySQL) - FINAL VERSION v5.3 (FULL FIX)
 -- =============================================================================
--- Fixed: DEFAULT (CURDATE()) for HireDate in Teacher table (parentheses required)
+-- This script includes:
+-- - All tables, indexes, sample data
+-- - All functions, procedures (with fixed sp_GetStudentGrades)
+-- - All triggers, views, reports
+-- - Updated security roles
+-- - Test cases
+-- No part is summarized.
 -- =============================================================================
 
 DROP DATABASE IF EXISTS OnlineSchoolDB;
@@ -438,8 +444,6 @@ BEGIN
     UPDATE Enrollment SET Status = 'Successful' WHERE EnrollmentID = v_EnrollmentID;
     UPDATE Payment SET Status = 'Successful' WHERE PaymentID = v_PaymentID;
 
-    -- Income update is handled by trg_Payment_Update_TeacherIncome
-
     CALL sp_CalculateStudentGPA(p_StudentID);
 
     COMMIT;
@@ -696,8 +700,6 @@ BEGIN
 
     INSERT INTO Payment (StudentID, CourseID, Amount, PaymentDate, Status, TransactionID)
     VALUES (v_StudentID, v_CourseID, v_TotalAmount, NOW(), 'Refunded', v_RefundTransactionID);
-
-    -- Income will be decreased by the trg_Payment_Insert_Refund trigger
 
     COMMIT;
 
@@ -1475,8 +1477,13 @@ BEGIN
     ORDER BY p.PaymentDate DESC;
 END //
 
+-- =============================================================================
+-- FIXED PROCEDURE: sp_GetStudentGrades (shows all successful enrollments and all submissions)
+-- =============================================================================
+
 CREATE PROCEDURE sp_GetStudentGrades(IN p_StudentID INT)
 BEGIN
+    -- 1. All courses where the student has a successful enrollment (even without final score)
     SELECT
         c.CourseID,
         c.Title AS CourseTitle,
@@ -1485,10 +1492,11 @@ BEGIN
     FROM Enrollment e
     INNER JOIN Course c ON e.CourseID = c.CourseID
     WHERE e.StudentID = p_StudentID
-      AND e.FinalScore IS NOT NULL
+      AND e.Status = 'Successful'
       AND c.IsDeleted = 0
     ORDER BY c.Title;
 
+    -- 2. All submissions of the student (even without score)
     SELECT
         a.AssignmentID,
         a.Title AS AssignmentTitle,
@@ -1501,7 +1509,6 @@ BEGIN
     INNER JOIN Assignment a ON s.AssignmentID = a.AssignmentID
     INNER JOIN Course c ON a.CourseID = c.CourseID
     WHERE s.StudentID = p_StudentID
-      AND s.Score IS NOT NULL
       AND c.IsDeleted = 0
     ORDER BY a.DueDate DESC;
 END //
@@ -1780,11 +1787,7 @@ END //
 DELIMITER ;
 
 -- =============================================================================
--- SECURITY ROLES
--- =============================================================================
-
--- =============================================================================
--- UPDATED SECURITY ROLES (logical permissions for students)
+-- SECURITY ROLES (Updated)
 -- =============================================================================
 
 CREATE ROLE IF NOT EXISTS AdminRole;
@@ -1793,14 +1796,13 @@ CREATE ROLE IF NOT EXISTS StudentRole;
 
 GRANT ALL PRIVILEGES ON OnlineSchoolDB.* TO AdminRole;
 
--- TeacherRole: all grading, attendance, certificate, course management, announcements, assignments, and relevant views
 GRANT EXECUTE ON PROCEDURE sp_GradeSubmission TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_RecordAttendance TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_IssueCertificatesForCourse TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_UpdateCourseStatus TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportTeacherIncome TO TeacherRole;
-GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO TeacherRole;  -- teachers can also see top students
+GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_CreateAnnouncement TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_UpdateAnnouncement TO TeacherRole;
 GRANT EXECUTE ON PROCEDURE sp_DeleteAnnouncement TO TeacherRole;
@@ -1813,32 +1815,24 @@ GRANT SELECT ON vw_CourseStatistics TO TeacherRole;
 GRANT SELECT ON vw_StudentTranscript TO TeacherRole;
 GRANT SELECT ON vw_StudentCertificates TO TeacherRole;
 
--- StudentRole: enrollment, submission, viewing their own grades/attendance, viewing course list/details,
--- viewing public reports (top students, popular courses), and announcements of enrolled courses
 GRANT EXECUTE ON PROCEDURE sp_EnrollStudentInCourse TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_SubmitAssignment TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportCourseGrades TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_ReportAttendance TO StudentRole;
 GRANT EXECUTE ON PROCEDURE sp_GetAnnouncementsByCourse TO StudentRole;
-GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO StudentRole;      -- students can see top students
-GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO StudentRole;   -- students can see popular courses
-GRANT EXECUTE ON PROCEDURE sp_GetCourses TO StudentRole;             -- students need to list courses
-GRANT EXECUTE ON PROCEDURE sp_GetCourseDetails TO StudentRole;       -- view course details
-GRANT EXECUTE ON PROCEDURE sp_GetAssignmentsByCourse TO StudentRole; -- view assignments after enrollment
-GRANT EXECUTE ON PROCEDURE sp_GetStudentPayments TO StudentRole;     -- view own payments
-GRANT EXECUTE ON PROCEDURE sp_GetStudentGrades TO StudentRole;       -- view own grades
+GRANT EXECUTE ON PROCEDURE sp_ReportTopStudents TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_ReportPopularCourses TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetCourses TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetCourseDetails TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetAssignmentsByCourse TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetStudentPayments TO StudentRole;
+GRANT EXECUTE ON PROCEDURE sp_GetStudentGrades TO StudentRole;
 GRANT SELECT ON vw_StudentTranscript TO StudentRole;
 GRANT SELECT ON vw_StudentCertificates TO StudentRole;
 GRANT SELECT ON vw_CourseStatistics TO StudentRole;
 
--- Note: Students do NOT have access to:
---   sp_ReportTeacherIncome, vw_TeacherDashboard, sp_IssueCertificatesForCourse, sp_UpdateCourseStatus,
---   sp_CreateAssignment, sp_UpdateAssignment, sp_DeleteAssignment,
---   sp_CreateAnnouncement, sp_UpdateAnnouncement, sp_DeleteAnnouncement,
---   sp_GradeSubmission, sp_RecordAttendance, sp_GetCourseStudents (student list)
-
 -- =============================================================================
--- TEST CASES (unchanged from original)
+-- TEST CASES (unchanged)
 -- =============================================================================
 
 CALL sp_UpdateCourseStatus();

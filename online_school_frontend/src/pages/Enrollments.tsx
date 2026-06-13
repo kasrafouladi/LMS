@@ -83,7 +83,7 @@ export default function Enrollments({ onOpenCourse }: Props) {
                         {e.EnrollmentStatus}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{e.FinalScore != null ? `${e.FinalScore}/۲۰` : '—'}</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr',textAlign: 'right' }}>{e.FinalScore != null ? `${e.FinalScore}/۲۰` : '—'}</td>
                     <td>
                       <div className="flex gap-2">
                         <button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(e.CourseID)}>مشاهده دوره</button>

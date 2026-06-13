@@ -67,7 +67,7 @@ export default function Dashboard({ onOpenCourse }: Props) {
                 <tr key={s.StudentID ?? i}>
                   <td style={{ color: i < 3 ? 'var(--accent-amber)' : 'var(--gray-400)', fontWeight: 700 }}>#{i + 1}</td>
                   <td style={{ fontWeight: 600 }}>{s.FullName}</td>
-                  <td style={{ fontWeight: 800, color: 'var(--brand-600)', fontFamily: 'monospace', direction: 'ltr' }}>{s.GPA}/۲۰</td>
+                  <td style={{ fontWeight: 800, color: 'var(--brand-600)', fontFamily: 'monospace', direction: 'ltr' ,textAlign: 'right'}}>{s.GPA}/20</td>
                 </tr>
               ))}
             </tbody>
@@ -160,7 +160,7 @@ export default function Dashboard({ onOpenCourse }: Props) {
                           {e.EnrollmentStatus}
                         </span>
                       </td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{e.FinalScore != null ? `${e.FinalScore}/۲۰` : '—'}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr',textAlign: 'right'}}>{e.FinalScore != null ? `${e.FinalScore}/20` : '—'}</td>
                       <td>
                         <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); onOpenCourse(e.CourseID); }}>
                           مشاهده
@@ -190,8 +190,8 @@ export default function Dashboard({ onOpenCourse }: Props) {
                     <tr key={i} style={{ cursor: 'pointer' }} onClick={() => onOpenCourse(a.CourseID)}>
                       <td style={{ fontWeight: 600 }}>{a.AssignmentTitle}</td>
                       <td style={{ color: 'var(--gray-500)' }}>{a.CourseTitle}</td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
-                        {a.Score != null ? <strong>{a.Score}/۲۰</strong> : <span className="badge badge-warning">تصحیح نشده</span>}
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr',textAlign: 'right'}}>
+                        {a.Score != null ? <strong>{a.Score}/20</strong> : <span className="badge badge-warning">تصحیح نشده</span>}
                       </td>
                     </tr>
                   ))}

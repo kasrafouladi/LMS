@@ -150,8 +150,8 @@ export default function Assignments({ onOpenCourse }: AssignmentsProps) {
                       onClick={() => onOpenCourse && onOpenCourse(c.CourseID)}
                     >
                       <td style={{ fontWeight: 600 }}>{c.CourseTitle}</td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
-                        {c.FinalScore != null ? <strong style={{ color: c.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{c.FinalScore}/۲۰</strong> : '—'}
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr',textAlign: 'right' }}>
+                        {c.FinalScore != null ? <strong style={{ color: c.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{c.FinalScore}/20</strong> : '—'}
                       </td>
                       <td><span className="badge badge-info">{c.EnrollmentStatus}</span></td>
                     </tr>
@@ -182,8 +182,8 @@ export default function Assignments({ onOpenCourse }: AssignmentsProps) {
                       <td style={{ fontWeight: 600 }}>{a.AssignmentTitle}</td>
                       <td style={{ color: 'var(--gray-500)' }}>{a.CourseTitle}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(a.SubmissionDate)}</td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
-                        {a.Score != null ? <strong>{a.Score}/۲۰</strong> : <span className="badge badge-warning">تصحیح نشده</span>}
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr',textAlign: 'right' }}>
+                        {a.Score != null ? <strong>{a.Score}/20</strong> : <span className="badge badge-warning">تصحیح نشده</span>}
                       </td>
                       <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Feedback ?? '—'}</td>
                     </tr>
@@ -298,8 +298,8 @@ export default function Assignments({ onOpenCourse }: AssignmentsProps) {
                       <td style={{ fontWeight: 600 }}>{a.Title}</td>
                       <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Description ?? '—'}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(a.DueDate)}</td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.MaxScore}</td>
-                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' ,textAlign: 'right'}}>{a.MaxScore}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' ,textAlign: 'right'}}>{a.SubmissionCount ?? 0}</td>
                       {isTeacher && (
                         <td>
                           <div className="flex gap-2">

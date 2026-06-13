@@ -94,11 +94,6 @@ export default function LoginPage({ onShowRegister }: LoginPageProps) {
            ثبت‌نام کنید
           </a>
         </div>
-
-        <div className="login-hint">
-          <span>دسترسی آزمایشی: </span>
-          <code>admin@edu.ir / admin123</code>
-        </div>
       </div>
     </div>
   );

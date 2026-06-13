@@ -14,6 +14,15 @@ const EMPTY_FORM = {
 const STATUS_OPTIONS = ['Draft', 'Upcoming', 'Active', 'Completed', 'Cancelled'];
 
 function formatPrice(n: number) { return (n ?? 0)?.toLocaleString('fa-IR') + ' ت'; }
+function formatPersianDate(date?: string | null) {
+  if (!date) return '—';
+
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(new Date(date));
+}
 
 function Skeleton() {
   return (
@@ -194,8 +203,12 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
                       </td>
                       <td>{c.TeacherName ?? '—'}</td>
                       <td style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{formatPrice(c.Price)}</td>
-                      <td style={{ fontSize: 'var(--text-xs)' }}>{c.StartDate?.slice(0,10)}</td>
-                      <td style={{ fontSize: 'var(--text-xs)' }}>{c.EndDate?.slice(0,10)}</td>
+                      <td style={{ fontSize: 'var(--text-xs)' }}>
+                        {formatPersianDate(c.StartDate)}
+                      </td>
+                      <td style={{ fontSize: 'var(--text-xs)' }}>
+                        {formatPersianDate(c.StartDate)}
+                      </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <div style={{ width: 50, height: 5, background: 'var(--gray-100)', borderRadius: 99, overflow: 'hidden' }}>

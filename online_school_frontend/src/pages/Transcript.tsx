@@ -69,7 +69,7 @@ export default function Transcript({ onOpenCourse }: Props) {
           <div className="card-header">
             <span className="card-title">سوابق دوره‌ها ({list.length})</span>
             {list[0]?.GPA != null && (
-              <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr' }}>میانگین کل (GPA): {list[0].GPA}</span>
+              <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'center' }}>میانگین کل (GPA): {list[0].GPA}</span>
             )}
           </div>
           <div className="table-wrapper" style={{ border: 'none' }}>
@@ -87,8 +87,8 @@ export default function Transcript({ onOpenCourse }: Props) {
                         {r.EnrollmentStatus}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
-                      {r.FinalScore != null ? <strong style={{ color: r.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{r.FinalScore}/۲۰</strong> : '—'}
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' , textAlign: 'right'}}>
+                      {r.FinalScore != null ? <strong style={{ color: r.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{r.FinalScore}/20</strong> : '—'}
                     </td>
                     <td><button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(r.CourseID)}>مشاهده دوره</button></td>
                   </tr>
@@ -108,7 +108,7 @@ export default function Transcript({ onOpenCourse }: Props) {
               <div key={key} className="card">
                 <div className="card-header">
                   <span className="card-title">{fullName}</span>
-                  {gpa != null && <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr' }}>GPA: {gpa}</span>}
+                  {gpa != null && <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'center'}}>GPA: {gpa}</span>}
                 </div>
                 <div className="table-wrapper" style={{ border: 'none' }}>
                   <table className="data-table">
@@ -123,7 +123,7 @@ export default function Transcript({ onOpenCourse }: Props) {
                               {r.EnrollmentStatus}
                             </span>
                            </td>
-                          <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{r.FinalScore != null ? `${r.FinalScore}/۲۰` : '—'}</td>
+                          <td style={{ fontFamily: 'monospace', direction: 'ltr', textAlign: 'center' }}>{r.FinalScore != null ? `${r.FinalScore}/۲۰` : '—'}</td>
                           <td><button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(r.CourseID)}>مشاهده دوره</button></td>
                         </tr>
                       ))}

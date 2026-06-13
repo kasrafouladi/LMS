@@ -118,7 +118,6 @@ export default function Payments() {
                   {isAdmin && <th>دانشجو</th>}
                   <th>دوره</th><th>مبلغ</th><th>تاریخ</th>
                   <th>شناسه تراکنش</th><th>وضعیت</th>
-                  {isStudent && <th>عملیات</th>}
                 </tr>
               </thead>
               <tbody>

@@ -18,7 +18,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard',     label: 'داشبورد',         icon: '📊' },
   { id: 'users',         label: 'کاربران',          icon: '👥',  roles: ['Admin'] },
-  { id: 'students',      label: 'دانشجویان',        icon: '🎓',  roles: ['Admin', 'Teacher'] },
+  { id: 'students',      label: 'دانشجویان',        icon: '🎓',  roles: ['Admin'] }, // فقط ادمین
   { id: 'teachers',      label: 'مدرسان',           icon: '👨‍🏫', roles: ['Admin'] },
   { id: 'courses',       label: 'دوره‌ها',           icon: '📚' },
   { id: 'enrollments',   label: 'ثبت‌نام',           icon: '📋',  roles: ['Student'] },
@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'payments',      label: 'پرداخت‌ها',         icon: '💳' },
   { id: 'attendance',    label: 'حضور و غیاب',      icon: '✅' },
   { id: 'certificates',  label: 'گواهی‌نامه‌ها',     icon: '🏆' },
-  { id: 'reports',       label: 'گزارش‌ها',          icon: '📈' }, // visible to ALL roles now
+  { id: 'reports',       label: 'گزارش‌ها',          icon: '📈' },
 ];
 
 interface SidebarProps {

@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { reportAttendance } from '../api/index';
 import { getStudentTranscript } from '../api/index';
+import { listCourses } from '../api/courses'; // اضافه شد
 
 export default function Attendance() {
   const { user, isTeacher, isAdmin, isStudent } = useAuth();
@@ -17,10 +18,19 @@ export default function Attendance() {
     ?.filter((e: any) => e.EnrollmentStatus === 'Successful')
     .map((e: any) => ({ CourseID: e.CourseID, Title: e.CourseTitle })) ?? [];
 
-  // برای استاد/ادمین: همه دوره‌ها (دسترسی قبلی)
-  const { data: allCourses } = useApi(() => (isTeacher || isAdmin) ? listCourses() : Promise.resolve([]), [isTeacher, isAdmin]);
+  // برای معلم: فقط دوره‌های خودش (با ارسال teacher_id)
+  const { data: myCourses } = useApi(() => (isTeacher && !isAdmin) ? listCourses({ teacher_id: Number(user?.sub) }) : Promise.resolve([]), [isTeacher, isAdmin, user]);
+  // برای ادمین: همه دوره‌ها
+  const { data: allCourses } = useApi(() => isAdmin ? listCourses() : Promise.resolve([]), [isAdmin]);
   
-  const courseList = isStudent ? enrolledCourses : (allCourses as any[]) ?? [];
+  let courseList: any[] = [];
+  if (isStudent) {
+    courseList = enrolledCourses;
+  } else if (isTeacher && !isAdmin) {
+    courseList = (myCourses as any[]) ?? [];
+  } else if (isAdmin) {
+    courseList = (allCourses as any[]) ?? [];
+  }
 
   const { data: records, loading, error } = useApi(
     () => (searched && courseId && studentId) ? reportAttendance(studentId, courseId) : Promise.resolve([]),
@@ -99,7 +109,7 @@ export default function Attendance() {
                 <thead><tr><th>تاریخ</th><th>وضعیت</th></tr></thead>
                 <tbody>
                   {list.length === 0 ? (
-                    <tr><td colSpan={2}><div className="empty-state"><div className="empty-icon">✅</div><h3>سابقه‌ای یافت نشد</h3></div></td></tr>
+                    <td><td colSpan={2}><div className="empty-state"><div className="empty-icon">✅</div><h3>سابقه‌ای یافت نشد</h3></div></td></tr>
                   ) : list.map((r: any, i: number) => (
                     <tr key={i}>
                       <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
@@ -109,7 +119,7 @@ export default function Attendance() {
                     </tr>
                   ))}
                 </tbody>
-            </table>
+              </table>
             </div>
           )}
         </div>
@@ -127,6 +137,3 @@ export default function Attendance() {
     </div>
   );
 }
-
-// نیاز به import در ابتدا
-import { listCourses } from '../api/courses';

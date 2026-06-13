@@ -34,6 +34,28 @@ def list_courses(
     data = courses[0] if courses else []
     return data
 
+@router.get("/me")
+def get_my_courses(
+    status: Optional[str] = Query(None, pattern="^(Upcoming|Active|Completed|Cancelled|Draft)$"),
+    current_user: dict = Depends(role_required(["Teacher"]))
+):
+    """
+    دریافت دوره‌های معلم جاری (بر اساس توکن).
+    شامل تمام وضعیت‌ها (حتی Draft) می‌شود.
+    """
+    teacher_id = int(current_user["sub"])
+    logger.info(f"Teacher {teacher_id} fetching own courses")
+    courses = call_stored_procedure("sp_GetCourses", {
+        "@Status": status,
+        "@TeacherID": teacher_id,
+        "@MinPrice": None,
+        "@MaxPrice": None,
+        "@SearchTitle": None,
+        "@RequestingTeacherID": teacher_id  # برای دیدن Draft خودش
+    })
+    data = courses[0] if courses else []
+    return data
+
 @router.get("/{course_id}")
 def get_course_details(
     course_id: int,

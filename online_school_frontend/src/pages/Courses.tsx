@@ -28,9 +28,10 @@ interface CoursesProps {
 }
 
 export default function Courses({ onOpenCourse }: CoursesProps) {
-  const { isAdmin, isTeacher, isStudent } = useAuth();
+  const { isAdmin, isTeacher, isStudent, user } = useAuth();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [myCoursesOnly, setMyCoursesOnly] = useState(false); // فقط برای معلم
   const [modalOpen, setModalOpen] = useState(false);
   const [editCourse, setEditCourse] = useState<Course | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -39,9 +40,18 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
+  // تنظیم پارامترهای درخواست بر اساس وضعیت
+  const getQueryParams = () => {
+    const params: any = { search: search || undefined, status: (statusFilter as any) || undefined };
+    if (isTeacher && myCoursesOnly) {
+      params.teacher_id = Number(user?.sub);
+    }
+    return params;
+  };
+
   const { data: courses, loading, error, refetch } = useApi(
-    () => listCourses({ search: search || undefined, status: (statusFilter as any) || undefined }),
-    [search, statusFilter]
+    () => listCourses(getQueryParams()),
+    [search, statusFilter, myCoursesOnly, isTeacher, user]
   );
 
   function openAdd() { setEditCourse(null); setForm(EMPTY_FORM); setSaveError(null); setModalOpen(true); }
@@ -131,10 +141,18 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
             {loading ? 'در حال بارگذاری...' : `لیست دوره‌ها (${filtered.length})`}
           </span>
           <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            {/* فیلتر وضعیت */}
             <select className="form-select" style={{ width: 140 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="">همه وضعیت‌ها</option>
               {STATUS_OPTIONS.filter(s => s !== 'Draft').map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            {/* فیلتر دوره‌های من (فقط برای معلم) */}
+            {isTeacher && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={myCoursesOnly} onChange={e => setMyCoursesOnly(e.target.checked)} />
+                فقط دوره‌های من
+              </label>
+            )}
             <div className="search-bar">
               <span className="search-icon">🔍</span>
               <input className="form-input" placeholder="جستجو..." value={search}
@@ -166,7 +184,8 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
                 ) : filtered.map(c => {
                   const pct = c.EnrolledCount != null && c.Capacity
                     ? Math.round((c.EnrolledCount / c.Capacity) * 100) : 0;
-                  const canEdit = isAdmin || (isTeacher && c.TeacherID != null);
+                  const isOwner = isTeacher && c.TeacherID === Number(user?.sub);
+                  const canEdit = isAdmin || isOwner; // فقط ادمین یا مالک
                   return (
                     <tr key={c.CourseID} style={{ cursor: 'pointer' }} onClick={() => onOpenCourse(c.CourseID)}>
                       <td>
@@ -227,7 +246,6 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
         </>}
       >
         {saveError && <div className="login-error">{saveError}</div>}
-        {/* فرم مشابه قبل */}
         <div className="form-group">
           <label className="form-label">عنوان دوره *</label>
           <input className="form-input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />

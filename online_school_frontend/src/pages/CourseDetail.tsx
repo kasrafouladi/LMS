@@ -4,6 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { getCourseDetails, getCourseAssignments } from '../api/courses';
 import { getCourseAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, submitAssignment, gradeSubmission, enrollStudent, recordAttendance } from '../api/index';
 import { getStudentTranscript } from '../api/index';
+import { createAssignment, updateAssignment, deleteAssignment } from '../api/index'; // اضافه شد
 import Modal from '../components/ui/Modal';
 import { ApiError } from '../api/client';
 
@@ -74,7 +75,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setEnrolling(false); }
   }
 
-  // ── Submit / edit / delete assignment ─────────────────────────
+  // ── Submit / edit / delete assignment (برای دانشجو) ─────────────────────────
   const [submitModal, setSubmitModal] = useState<{ assignmentId: number; title: string; isEdit: boolean; submissionId?: number } | null>(null);
   const [fileUrl, setFileUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -122,7 +123,73 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     }
   }
 
-  // ── Grade modal ───────────────────────────────────────────────
+  // ── مدیریت تکالیف برای معلم (افزودن، ویرایش، حذف) ──────────────────────────
+  const [assignmentModal, setAssignmentModal] = useState<{ id?: number; title: string; description: string; due_date: string; max_score: number } | null>(null);
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+
+  function openAddAssignment() {
+    setAssignmentModal({
+      title: '',
+      description: '',
+      due_date: '',
+      max_score: 20
+    });
+    setAssignmentError(null);
+  }
+
+  function openEditAssignment(a: any) {
+    setAssignmentModal({
+      id: a.AssignmentID,
+      title: a.Title,
+      description: a.Description ?? '',
+      due_date: a.DueDate ? new Date(a.DueDate).toISOString().slice(0, 16) : '',
+      max_score: a.MaxScore
+    });
+    setAssignmentError(null);
+  }
+
+  async function handleSaveAssignment() {
+    if (!assignmentModal || !assignmentModal.title) return;
+    setAssignmentSaving(true);
+    setAssignmentError(null);
+    try {
+      if (assignmentModal.id) {
+        await updateAssignment(assignmentModal.id, {
+          title: assignmentModal.title,
+          description: assignmentModal.description || undefined,
+          due_date: assignmentModal.due_date ? new Date(assignmentModal.due_date).toISOString() : undefined,
+          max_score: assignmentModal.max_score
+        });
+      } else {
+        await createAssignment({
+          course_id: courseId,
+          title: assignmentModal.title,
+          description: assignmentModal.description || undefined,
+          due_date: new Date(assignmentModal.due_date).toISOString(),
+          max_score: assignmentModal.max_score
+        });
+      }
+      setAssignmentModal(null);
+      refetch(); // برای به‌روزرسانی لیست تکالیف
+    } catch (err) {
+      setAssignmentError(err instanceof ApiError ? err.message : 'خطا در ذخیره تکلیف');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  }
+
+  async function handleDeleteAssignment(assignmentId: number) {
+    if (!confirm('این تکلیف حذف شود؟ (در صورت وجود ارسالی، نمرات نهایی دوباره محاسبه می‌شوند)')) return;
+    try {
+      await deleteAssignment(assignmentId);
+      refetch();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'خطا');
+    }
+  }
+
+  // ── Grade modal (برای معلم) ───────────────────────────────────────────────
   const [gradeModal, setGradeModal] = useState<{ submissionId: number; studentName?: string } | null>(null);
   const [gradeForm, setGradeForm] = useState({ score: 0, feedback: '' });
   const [grading, setGrading] = useState(false);
@@ -317,6 +384,9 @@ export default function CourseDetail({ courseId, onBack }: Props) {
       <div className="card" style={{ marginBottom: 'var(--space-5)' }}>
         <div className="card-header">
           <span className="card-title">📝 تکالیف دوره ({assignments.length})</span>
+          {canManage && course.Status !== 'Completed' && course.Status !== 'Cancelled' && (
+            <button className="btn btn-primary btn-sm" onClick={openAddAssignment}>+ تکلیف جدید</button>
+          )}
         </div>
         {assignments.length === 0 ? (
           <div className="empty-state"><div className="empty-icon">📝</div><h3>تکلیفی ثبت نشده</h3></div>
@@ -341,6 +411,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                   const canSubmit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Pending' && !deadlinePassed;
                   const canEdit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
                   const canDelete = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
+                  const canManageAssignment = canManage; // معلم یا ادمین
                   return (
                     <tr key={a.AssignmentID}>
                       <td style={{ fontWeight: 600 }}>{a.Title}</td>
@@ -365,8 +436,9 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                       {isStudent && (
                         <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{a.Feedback ?? '—'}</td>
                       )}
-                      {!isStudent && <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}</td>}
+                      {!isStudent && <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}<td>}
                       <td>
+                        {/* عملیات برای دانشجو */}
                         {isStudent && isEnrolledSuccessful && !isGraded && (
                           <>
                             {canSubmit && (
@@ -395,7 +467,16 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                         {isStudent && submissionStatus === 'Missed' && (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>مهلت ارسال گذشته است</span>
                         )}
-                        {!isStudent && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>از تب «تکالیف» نمره‌دهی کنید</span>}
+                        {/* عملیات برای معلم/ادمین */}
+                        {!isStudent && canManageAssignment && (
+                          <div className="flex gap-2">
+                            <button className="btn btn-secondary btn-sm" onClick={() => openEditAssignment(a)}>ویرایش</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleDeleteAssignment(a.AssignmentID)}>حذف</button>
+                          </div>
+                        )}
+                        {!isStudent && !canManageAssignment && (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>برای مدیریت تکلیف، باید مالک دوره باشید</span>
+                        )}
                       </td>
                     </tr>
                   );
@@ -442,7 +523,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                         )}
                       </td>
                     )}
-                  </tr>
+                  <tr>
                 ))}
               </tbody>
             </table>
@@ -450,7 +531,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       )}
 
-      {/* Enroll modal */}
+      {/* مودال ثبت‌نام */}
       <Modal open={enrollOpen} title="ثبت‌نام در دوره" onClose={() => setEnrollOpen(false)}
         footer={<>
           <button className="btn btn-primary" onClick={handleEnroll} disabled={enrolling}>{enrolling ? 'در حال ثبت...' : 'تأیید و پرداخت'}</button>
@@ -464,7 +545,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* Submit / Edit assignment modal */}
+      {/* مودال ارسال/ویرایش تکلیف برای دانشجو */}
       <Modal open={!!submitModal} title={`${submitModal?.isEdit ? 'ویرایش ارسال' : 'ارسال تکلیف'} — ${submitModal?.title}`} onClose={() => setSubmitModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleSubmitAssignment} disabled={submitting || !fileUrl}>{submitting ? 'در حال ارسال...' : (submitModal?.isEdit ? 'به‌روزرسانی' : 'ارسال')}</button>
@@ -485,7 +566,51 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         )}
       </Modal>
 
-      {/* Attendance modal */}
+      {/* مودال افزودن/ویرایش تکلیف برای معلم */}
+      <Modal open={!!assignmentModal} title={assignmentModal?.id ? 'ویرایش تکلیف' : 'تکلیف جدید'} onClose={() => setAssignmentModal(null)}
+        footer={<>
+          <button className="btn btn-primary" onClick={handleSaveAssignment} disabled={assignmentSaving || !assignmentModal?.due_date || !assignmentModal?.title}>
+            {assignmentSaving ? 'ذخیره...' : assignmentModal?.id ? 'ذخیره' : 'افزودن'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => setAssignmentModal(null)}>انصراف</button>
+        </>}>
+        {assignmentError && <div className="login-error">{assignmentError}</div>}
+        <div className="form-group">
+          <label className="form-label">عنوان تکلیف *</label>
+          <input className="form-input" value={assignmentModal?.title ?? ''} onChange={e => setAssignmentModal(m => m ? { ...m, title: e.target.value } : m)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">توضیحات</label>
+          <textarea className="form-input" rows={3} value={assignmentModal?.description ?? ''} onChange={e => setAssignmentModal(m => m ? { ...m, description: e.target.value } : m)} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">مهلت ارسال *</label>
+          <input className="form-input" type="datetime-local" value={assignmentModal?.due_date ?? ''} onChange={e => setAssignmentModal(m => m ? { ...m, due_date: e.target.value } : m)} dir="ltr" />
+        </div>
+        <div className="form-group">
+          <label className="form-label">حداکثر نمره</label>
+          <input className="form-input" type="number" min={1} max={20} step={0.5} value={assignmentModal?.max_score ?? 20} onChange={e => setAssignmentModal(m => m ? { ...m, max_score: +e.target.value } : m)} dir="ltr" />
+        </div>
+      </Modal>
+
+      {/* مودال نمره‌دهی */}
+      <Modal open={!!gradeModal} title={`نمره‌دهی — ${gradeModal?.studentName}`} onClose={() => setGradeModal(null)}
+        footer={<>
+          <button className="btn btn-primary" onClick={handleGrade} disabled={grading}>{grading ? 'ذخیره...' : 'ثبت نمره'}</button>
+          <button className="btn btn-secondary" onClick={() => setGradeModal(null)}>انصراف</button>
+        </>}>
+        <div className="form-group">
+          <label className="form-label">نمره (۰–۲۰)</label>
+          <input className="form-input" type="number" min={0} max={20} step={0.5} dir="ltr"
+            value={gradeForm.score} onChange={e => setGradeForm(f => ({ ...f, score: +e.target.value }))} />
+        </div>
+        <div className="form-group">
+          <label className="form-label">بازخورد</label>
+          <input className="form-input" value={gradeForm.feedback} onChange={e => setGradeForm(f => ({ ...f, feedback: e.target.value }))} />
+        </div>
+      </Modal>
+
+      {/* مودال ثبت حضور */}
       <Modal open={!!attModal} title={`ثبت حضور — ${attModal?.name}`} onClose={() => setAttModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleRecordAttendance} disabled={attSaving || !attForm.session_date}>{attSaving ? 'ذخیره...' : 'ثبت'}</button>
@@ -507,7 +632,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* Announcement modal */}
+      {/* مودال اطلاعیه */}
       <Modal open={!!annModal} title={annModal?.id ? 'ویرایش اطلاعیه' : 'اطلاعیه جدید'} onClose={() => setAnnModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleSaveAnnouncement} disabled={annSaving || !annModal?.title || !annModal?.content}>{annSaving ? 'ذخیره...' : 'ذخیره'}</button>

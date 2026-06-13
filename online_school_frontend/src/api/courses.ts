@@ -89,3 +89,7 @@ export function deleteCourse(courseId: number) {
 export function getCourseAssignments(courseId: number) {
   return request<CourseAssignment[]>(`/courses/${courseId}/assignments`);
 }
+
+export function getMyCourses(status?: string) {
+  return request<Course[]>('/courses/me', { params: { status } });
+}

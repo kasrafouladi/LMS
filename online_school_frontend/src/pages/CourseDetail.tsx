@@ -4,7 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { getCourseDetails, getCourseAssignments } from '../api/courses';
 import { getCourseAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, submitAssignment, gradeSubmission, enrollStudent, recordAttendance } from '../api/index';
 import { getStudentTranscript } from '../api/index';
-import { createAssignment, updateAssignment, deleteAssignment } from '../api/index'; // اضافه شد
+import { createAssignment, updateAssignment, deleteAssignment } from '../api/index';
 import Modal from '../components/ui/Modal';
 import { ApiError } from '../api/client';
 
@@ -22,10 +22,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
   const { data, loading, error, refetch } = useApi(() => getCourseDetails(courseId), [courseId]);
   const { data: announcements, refetch: refetchAnn } = useApi(() => getCourseAnnouncements(courseId).catch(() => []), [courseId]);
   
-  // برای دانشجو: دریافت لیست دوره‌های ثبت‌نام شده (برای تشخیص وضعیت ثبت‌نام)
   const { data: transcript } = useApi(() => isStudent ? getStudentTranscript() : Promise.resolve([]), [isStudent]);
-  
-  // برای دانشجو: دریافت تکالیف با وضعیت ارسال
   const { data: studentAssignments, refetch: refetchAssignments } = useApi(
     () => isStudent ? getCourseAssignments(courseId) : Promise.resolve([]),
     [courseId, isStudent]
@@ -36,25 +33,21 @@ export default function CourseDetail({ courseId, onBack }: Props) {
   const students = (data as any)?.students ?? [];
   const annList = (announcements as any[]) ?? [];
 
-  // استفاده از داده اختصاصی دانشجو اگر لاگین کرده باشد
   const assignments = isStudent ? (studentAssignments as any[]) ?? [] : rawAssignments;
 
   const isOwner = isTeacher && course && Number(user?.sub) === course.TeacherID;
   const canManage = isAdmin || isOwner;
 
-  // ── تشخیص وضعیت ثبت‌نام دانشجو ──────────────────────────────────────────────
   const myEnrollmentFromTranscript = isStudent && transcript
     ? (transcript as any[]).find((e: any) => e.CourseID === courseId)
     : null;
-  
   const myEnrollmentFromStudents = isStudent ? null : students.find((s: any) => s.StudentID === Number(user?.sub));
-  
   const myEnrollment = isStudent ? myEnrollmentFromTranscript : myEnrollmentFromStudents;
   const isEnrolledSuccessful = isStudent
     ? myEnrollmentFromTranscript?.EnrollmentStatus === 'Successful'
     : myEnrollmentFromStudents?.EnrollmentStatus === 'Successful';
 
-  // ── Enroll modal ──────────────────────────────────────────────
+  // Enroll
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [enrollForm, setEnrollForm] = useState({ transaction_id: '' });
   const [enrolling, setEnrolling] = useState(false);
@@ -75,7 +68,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setEnrolling(false); }
   }
 
-  // ── Submit / edit / delete assignment (برای دانشجو) ─────────────────────────
+  // Student submit assignment
   const [submitModal, setSubmitModal] = useState<{ assignmentId: number; title: string; isEdit: boolean; submissionId?: number } | null>(null);
   const [fileUrl, setFileUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -123,7 +116,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     }
   }
 
-  // ── مدیریت تکالیف برای معلم (افزودن، ویرایش، حذف) ──────────────────────────
+  // Teacher assignment management
   const [assignmentModal, setAssignmentModal] = useState<{ id?: number; title: string; description: string; due_date: string; max_score: number } | null>(null);
   const [assignmentSaving, setAssignmentSaving] = useState(false);
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
@@ -171,7 +164,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         });
       }
       setAssignmentModal(null);
-      refetch(); // برای به‌روزرسانی لیست تکالیف
+      refetch();
     } catch (err) {
       setAssignmentError(err instanceof ApiError ? err.message : 'خطا در ذخیره تکلیف');
     } finally {
@@ -189,7 +182,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     }
   }
 
-  // ── Grade modal (برای معلم) ───────────────────────────────────────────────
+  // Grade modal
   const [gradeModal, setGradeModal] = useState<{ submissionId: number; studentName?: string } | null>(null);
   const [gradeForm, setGradeForm] = useState({ score: 0, feedback: '' });
   const [grading, setGrading] = useState(false);
@@ -206,7 +199,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setGrading(false); }
   }
 
-  // ── Attendance modal ──────────────────────────────────────────
+  // Attendance
   const [attModal, setAttModal] = useState<{ studentId: number; name: string } | null>(null);
   const [attForm, setAttForm] = useState({ session_date: '', status: 'Present' as 'Present' | 'Absent' });
   const [attSaving, setAttSaving] = useState(false);
@@ -225,7 +218,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setAttSaving(false); }
   }
 
-  // ── Announcements ─────────────────────────────────────────────
+  // Announcements
   const [annModal, setAnnModal] = useState<{ id?: number; title: string; content: string } | null>(null);
   const [annSaving, setAnnSaving] = useState(false);
 
@@ -302,7 +295,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       )}
 
-      {/* Course info card (بدون ظرفیت) */}
+      {/* Course info */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-5)' }}>
         <p style={{ color: 'var(--gray-600)', marginBottom: 'var(--space-4)' }}>{course.Description || 'بدون توضیحات'}</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-4)' }}>
@@ -411,7 +404,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                   const canSubmit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Pending' && !deadlinePassed;
                   const canEdit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
                   const canDelete = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
-                  const canManageAssignment = canManage; // معلم یا ادمین
                   return (
                     <tr key={a.AssignmentID}>
                       <td style={{ fontWeight: 600 }}>{a.Title}</td>
@@ -436,9 +428,8 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                       {isStudent && (
                         <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{a.Feedback ?? '—'}</td>
                       )}
-                      {!isStudent && <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}<td>}
+                      {!isStudent && <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}</td>}
                       <td>
-                        {/* عملیات برای دانشجو */}
                         {isStudent && isEnrolledSuccessful && !isGraded && (
                           <>
                             {canSubmit && (
@@ -467,14 +458,13 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                         {isStudent && submissionStatus === 'Missed' && (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>مهلت ارسال گذشته است</span>
                         )}
-                        {/* عملیات برای معلم/ادمین */}
-                        {!isStudent && canManageAssignment && (
+                        {!isStudent && canManage && (
                           <div className="flex gap-2">
                             <button className="btn btn-secondary btn-sm" onClick={() => openEditAssignment(a)}>ویرایش</button>
                             <button className="btn btn-danger btn-sm" onClick={() => handleDeleteAssignment(a.AssignmentID)}>حذف</button>
                           </div>
                         )}
-                        {!isStudent && !canManageAssignment && (
+                        {!isStudent && !canManage && (
                           <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>برای مدیریت تکلیف، باید مالک دوره باشید</span>
                         )}
                       </td>
@@ -496,7 +486,8 @@ export default function CourseDetail({ courseId, onBack }: Props) {
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table className="data-table">
               <thead>
-                <tr><th>نام</th><th>ایمیل</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th><th>نمره نهایی</th><th>پیشرفت</th><th>GPA</th>
+                <tr>
+                  <th>نام</th><th>ایمیل</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th><th>نمره نهایی</th><th>پیشرفت</th><th>GPA</th>
                   {canManage && <th>عملیات</th>}
                 </tr>
               </thead>
@@ -523,7 +514,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                         )}
                       </td>
                     )}
-                  <tr>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -531,7 +522,7 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       )}
 
-      {/* مودال ثبت‌نام */}
+      {/* Modals */}
       <Modal open={enrollOpen} title="ثبت‌نام در دوره" onClose={() => setEnrollOpen(false)}
         footer={<>
           <button className="btn btn-primary" onClick={handleEnroll} disabled={enrolling}>{enrolling ? 'در حال ثبت...' : 'تأیید و پرداخت'}</button>
@@ -545,7 +536,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* مودال ارسال/ویرایش تکلیف برای دانشجو */}
       <Modal open={!!submitModal} title={`${submitModal?.isEdit ? 'ویرایش ارسال' : 'ارسال تکلیف'} — ${submitModal?.title}`} onClose={() => setSubmitModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleSubmitAssignment} disabled={submitting || !fileUrl}>{submitting ? 'در حال ارسال...' : (submitModal?.isEdit ? 'به‌روزرسانی' : 'ارسال')}</button>
@@ -566,7 +556,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         )}
       </Modal>
 
-      {/* مودال افزودن/ویرایش تکلیف برای معلم */}
       <Modal open={!!assignmentModal} title={assignmentModal?.id ? 'ویرایش تکلیف' : 'تکلیف جدید'} onClose={() => setAssignmentModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleSaveAssignment} disabled={assignmentSaving || !assignmentModal?.due_date || !assignmentModal?.title}>
@@ -593,7 +582,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* مودال نمره‌دهی */}
       <Modal open={!!gradeModal} title={`نمره‌دهی — ${gradeModal?.studentName}`} onClose={() => setGradeModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleGrade} disabled={grading}>{grading ? 'ذخیره...' : 'ثبت نمره'}</button>
@@ -610,7 +598,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* مودال ثبت حضور */}
       <Modal open={!!attModal} title={`ثبت حضور — ${attModal?.name}`} onClose={() => setAttModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleRecordAttendance} disabled={attSaving || !attForm.session_date}>{attSaving ? 'ذخیره...' : 'ثبت'}</button>
@@ -632,7 +619,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         </div>
       </Modal>
 
-      {/* مودال اطلاعیه */}
       <Modal open={!!annModal} title={annModal?.id ? 'ویرایش اطلاعیه' : 'اطلاعیه جدید'} onClose={() => setAnnModal(null)}
         footer={<>
           <button className="btn btn-primary" onClick={handleSaveAnnouncement} disabled={annSaving || !annModal?.title || !annModal?.content}>{annSaving ? 'ذخیره...' : 'ذخیره'}</button>

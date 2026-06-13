@@ -4,7 +4,7 @@ import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { reportAttendance } from '../api/index';
 import { getStudentTranscript } from '../api/index';
-import { listCourses } from '../api/courses'; // اضافه شد
+import { listCourses } from '../api/courses';
 
 export default function Attendance() {
   const { user, isTeacher, isAdmin, isStudent } = useAuth();
@@ -106,18 +106,32 @@ export default function Attendance() {
           ) : (
             <div className="table-wrapper" style={{ border: 'none' }}>
               <table className="data-table">
-                <thead><tr><th>تاریخ</th><th>وضعیت</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>تاریخ</th>
+                    <th>وضعیت</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {list.length === 0 ? (
-                    <td><td colSpan={2}><div className="empty-state"><div className="empty-icon">✅</div><h3>سابقه‌ای یافت نشد</h3></div></td></tr>
-                  ) : list.map((r: any, i: number) => (
-                    <tr key={i}>
-                      <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                        {r.SessionDate ? new Date(r.SessionDate).toLocaleDateString('fa-IR') : '—'}
+                    <tr>
+                      <td colSpan={2}>
+                        <div className="empty-state">
+                          <div className="empty-icon">✅</div>
+                          <h3>سابقه‌ای یافت نشد</h3>
+                        </div>
                       </td>
-                      <td>{attendanceBadge(r.Status)}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    list.map((r: any, i: number) => (
+                      <tr key={i}>
+                        <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
+                          {r.SessionDate ? new Date(r.SessionDate).toLocaleDateString('fa-IR') : '—'}
+                        </td>
+                        <td>{attendanceBadge(r.Status)}</td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>

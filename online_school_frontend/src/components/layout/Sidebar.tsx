@@ -28,7 +28,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'payments',      label: 'پرداخت‌ها',         icon: '💳' },
   { id: 'attendance',    label: 'حضور و غیاب',      icon: '✅' },
   { id: 'certificates',  label: 'گواهی‌نامه‌ها',     icon: '🏆' },
-  { id: 'reports',       label: 'گزارش‌ها',          icon: '📈',  roles: ['Admin', 'Teacher'] },
+  { id: 'reports',       label: 'گزارش‌ها',          icon: '📈' }, // visible to ALL roles now
 ];
 
 interface SidebarProps {

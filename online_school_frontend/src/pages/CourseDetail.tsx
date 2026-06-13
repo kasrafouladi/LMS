@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useApi } from '../hooks/useApi';
-import { getCourseDetails } from '../api/courses';
+import { getCourseDetails, getCourseAssignments } from '../api/courses';
 import { getCourseAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement, submitAssignment, gradeSubmission, enrollStudent, recordAttendance } from '../api/index';
+import { getStudentTranscript } from '../api/index';
 import Modal from '../components/ui/Modal';
 import { ApiError } from '../api/client';
 
@@ -13,21 +14,46 @@ interface Props {
 
 function formatPrice(n: number) { return (n ?? 0).toLocaleString('fa-IR') + ' ت'; }
 function fmtDate(d?: string | null) { return d ? new Date(d).toLocaleDateString('fa-IR') : '—'; }
+function fmtDateTime(d?: string | null) { return d ? new Date(d).toLocaleString('fa-IR') : '—'; }
 
 export default function CourseDetail({ courseId, onBack }: Props) {
   const { user, isAdmin, isTeacher, isStudent } = useAuth();
   const { data, loading, error, refetch } = useApi(() => getCourseDetails(courseId), [courseId]);
   const { data: announcements, refetch: refetchAnn } = useApi(() => getCourseAnnouncements(courseId).catch(() => []), [courseId]);
+  
+  // برای دانشجو: دریافت لیست دوره‌های ثبت‌نام شده (برای تشخیص وضعیت ثبت‌نام)
+  const { data: transcript } = useApi(() => isStudent ? getStudentTranscript() : Promise.resolve([]), [isStudent]);
+  
+  // برای دانشجو: دریافت تکالیف با وضعیت ارسال
+  const { data: studentAssignments, refetch: refetchAssignments } = useApi(
+    () => isStudent ? getCourseAssignments(courseId) : Promise.resolve([]),
+    [courseId, isStudent]
+  );
 
   const course = (data as any)?.course;
-  const assignments = (data as any)?.assignments ?? [];
+  const rawAssignments = (data as any)?.assignments ?? [];
   const students = (data as any)?.students ?? [];
   const annList = (announcements as any[]) ?? [];
+
+  // استفاده از داده اختصاصی دانشجو اگر لاگین کرده باشد
+  const assignments = isStudent ? (studentAssignments as any[]) ?? [] : rawAssignments;
 
   const isOwner = isTeacher && course && Number(user?.sub) === course.TeacherID;
   const canManage = isAdmin || isOwner;
 
-  // ── Enroll modal (student) ──────────────────────────────────────────────
+  // ── تشخیص وضعیت ثبت‌نام دانشجو ──────────────────────────────────────────────
+  const myEnrollmentFromTranscript = isStudent && transcript
+    ? (transcript as any[]).find((e: any) => e.CourseID === courseId)
+    : null;
+  
+  const myEnrollmentFromStudents = isStudent ? null : students.find((s: any) => s.StudentID === Number(user?.sub));
+  
+  const myEnrollment = isStudent ? myEnrollmentFromTranscript : myEnrollmentFromStudents;
+  const isEnrolledSuccessful = isStudent
+    ? myEnrollmentFromTranscript?.EnrollmentStatus === 'Successful'
+    : myEnrollmentFromStudents?.EnrollmentStatus === 'Successful';
+
+  // ── Enroll modal ──────────────────────────────────────────────
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [enrollForm, setEnrollForm] = useState({ transaction_id: '' });
   const [enrolling, setEnrolling] = useState(false);
@@ -48,26 +74,55 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setEnrolling(false); }
   }
 
-  // ── Submit assignment modal (student) ───────────────────────────────────
-  const [submitModal, setSubmitModal] = useState<{ assignmentId: number; title: string } | null>(null);
+  // ── Submit / edit / delete assignment ─────────────────────────
+  const [submitModal, setSubmitModal] = useState<{ assignmentId: number; title: string; isEdit: boolean; submissionId?: number } | null>(null);
   const [fileUrl, setFileUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+
+  function openSubmitModal(a: any) {
+    const isEdit = a.SubmissionStatus === 'Submitted';
+    setSubmitModal({
+      assignmentId: a.AssignmentID,
+      title: a.Title,
+      isEdit,
+      submissionId: a.SubmissionID
+    });
+    setFileUrl(a.SubmissionURL ?? '');
+    setSubmitError(null);
+  }
 
   async function handleSubmitAssignment() {
     if (!submitModal) return;
     setSubmitting(true); setSubmitError(null);
     try {
-      await submitAssignment({ assignment_id: submitModal.assignmentId, file_url: fileUrl });
+      const res: any = await submitAssignment({ assignment_id: submitModal.assignmentId, file_url: fileUrl });
+      const msg = res?.data?.[0]?.Message ?? (submitModal.isEdit ? 'ارسال شما با موفقیت به‌روزرسانی شد' : 'تکلیف با موفقیت ارسال شد');
+      setSubmitSuccess(msg);
       setSubmitModal(null);
       setFileUrl('');
       refetch();
+      if (isStudent) refetchAssignments();
     } catch (err) {
       setSubmitError(err instanceof ApiError ? err.message : 'خطا در ارسال تکلیف');
     } finally { setSubmitting(false); }
   }
 
-  // ── Grade modal (teacher) ───────────────────────────────────────────────
+  async function handleDeleteSubmission(assignmentId: number, submissionId?: number) {
+    if (!submissionId) {
+      alert('شناسه ارسال وجود ندارد');
+      return;
+    }
+    if (!confirm('آیا از حذف ارسال خود مطمئن هستید؟ این عمل قابل بازگشت نیست.')) return;
+    try {
+      alert('API حذف ارسال هنوز پیاده‌سازی نشده است.');
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : 'خطا در حذف ارسال');
+    }
+  }
+
+  // ── Grade modal ───────────────────────────────────────────────
   const [gradeModal, setGradeModal] = useState<{ submissionId: number; studentName?: string } | null>(null);
   const [gradeForm, setGradeForm] = useState({ score: 0, feedback: '' });
   const [grading, setGrading] = useState(false);
@@ -84,10 +139,11 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     } finally { setGrading(false); }
   }
 
-  // ── Attendance modal (teacher/admin) ────────────────────────────────────
+  // ── Attendance modal ──────────────────────────────────────────
   const [attModal, setAttModal] = useState<{ studentId: number; name: string } | null>(null);
   const [attForm, setAttForm] = useState({ session_date: '', status: 'Present' as 'Present' | 'Absent' });
   const [attSaving, setAttSaving] = useState(false);
+  const [attMsg, setAttMsg] = useState<string | null>(null);
 
   async function handleRecordAttendance() {
     if (!attModal || !course) return;
@@ -95,13 +151,14 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     try {
       await recordAttendance({ student_id: attModal.studentId, course_id: course.CourseID, session_date: attForm.session_date, status: attForm.status });
       setAttModal(null);
-      alert('حضور با موفقیت ثبت شد');
+      setAttMsg('حضور با موفقیت ثبت شد');
+      setTimeout(() => setAttMsg(null), 4000);
     } catch (err) {
       alert(err instanceof ApiError ? err.message : 'خطا');
     } finally { setAttSaving(false); }
   }
 
-  // ── Announcements (teacher) ─────────────────────────────────────────────
+  // ── Announcements ─────────────────────────────────────────────
   const [annModal, setAnnModal] = useState<{ id?: number; title: string; content: string } | null>(null);
   const [annSaving, setAnnSaving] = useState(false);
 
@@ -144,12 +201,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
     );
   }
 
-  // Determine my submission/enrollment status (student)
-  const myEnrollment = isStudent ? students.find((s: any) => s.StudentID === Number(user?.sub)) : null;
-  const isEnrolledSuccessful = isStudent && (myEnrollment?.EnrollmentStatus === 'Successful');
-
-  const pct = course.Capacity ? Math.round(((students.filter((s:any)=>s.EnrollmentStatus==='Successful').length) / course.Capacity) * 100) : 0;
-
   return (
     <div>
       <div className="page-header">
@@ -173,14 +224,24 @@ export default function CourseDetail({ courseId, onBack }: Props) {
           ✅ {enrollSuccess}
         </div>
       )}
+      {submitSuccess && (
+        <div className="card animate-fade-in" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-success-bg)', border: '1px solid #a7f3d0', color: '#065f46' }}>
+          ✅ {submitSuccess}
+        </div>
+      )}
+      {attMsg && (
+        <div className="card animate-fade-in" style={{ marginBottom: 'var(--space-4)', padding: 'var(--space-4)', background: 'var(--color-success-bg)', border: '1px solid #a7f3d0', color: '#065f46' }}>
+          ✅ {attMsg}
+        </div>
+      )}
 
-      {/* Course info card */}
+      {/* Course info card (بدون ظرفیت) */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-5)' }}>
         <p style={{ color: 'var(--gray-600)', marginBottom: 'var(--space-4)' }}>{course.Description || 'بدون توضیحات'}</p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 'var(--space-4)' }}>
           <div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>قیمت</div>
-            <div style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{formatPrice(course.Price)}</div>
+            <div style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{formatPrice(course.Price)}</div>
           </div>
           <div>
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>تاریخ شروع</div>
@@ -190,10 +251,6 @@ export default function CourseDetail({ courseId, onBack }: Props) {
             <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>تاریخ پایان</div>
             <div style={{ fontWeight: 600 }}>{fmtDate(course.EndDate)}</div>
           </div>
-          <div>
-            <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>ظرفیت</div>
-            <div style={{ fontWeight: 600 }}>{students.filter((s:any)=>s.EnrollmentStatus==='Successful').length || 0}/{course.Capacity} ({pct}٪)</div>
-          </div>
         </div>
 
         {isStudent && !myEnrollment && course.Status === 'Upcoming' && (
@@ -202,14 +259,25 @@ export default function CourseDetail({ courseId, onBack }: Props) {
           </div>
         )}
         {isStudent && myEnrollment && (
-          <div style={{ marginTop: 'var(--space-5)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+          <div style={{ marginTop: 'var(--space-5)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
             <span style={{ fontSize: 'var(--text-sm)', color: 'var(--gray-500)' }}>وضعیت ثبت‌نام شما:</span>
             <span className={`badge ${myEnrollment.EnrollmentStatus === 'Successful' ? 'badge-success' : myEnrollment.EnrollmentStatus === 'Pending' ? 'badge-warning' : 'badge-danger'}`}>
               {myEnrollment.EnrollmentStatus}
             </span>
             {myEnrollment.FinalScore != null && (
-              <span style={{ fontSize: 'var(--text-sm)' }}>نمره نهایی: <strong>{myEnrollment.FinalScore}/۲۰</strong></span>
+              <span style={{ fontSize: 'var(--text-sm)', fontFamily: 'monospace', direction: 'ltr' }}>نمره نهایی: <strong>{myEnrollment.FinalScore}/۲۰</strong></span>
             )}
+            {myEnrollment.ProgressPercent != null && (
+              <span style={{ fontSize: 'var(--text-sm)', color: 'var(--gray-500)', fontFamily: 'monospace', direction: 'ltr' }}>پیشرفت: {myEnrollment.ProgressPercent}٪</span>
+            )}
+          </div>
+        )}
+        {!isStudent && myEnrollment && (
+          <div style={{ marginTop: 'var(--space-5)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 'var(--text-sm)', color: 'var(--gray-500)' }}>وضعیت ثبت‌نام شما (در صورت ثبت‌نام):</span>
+            <span className={`badge ${myEnrollment.EnrollmentStatus === 'Successful' ? 'badge-success' : 'badge-warning'}`}>
+              {myEnrollment.EnrollmentStatus}
+            </span>
           </div>
         )}
       </div>
@@ -260,47 +328,78 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                   <th>عنوان</th><th>توضیحات</th><th>مهلت</th><th>حداکثر نمره</th>
                   {isStudent && <th>وضعیت من</th>}
                   {isStudent && <th>نمره</th>}
+                  {isStudent && <th>بازخورد</th>}
                   {!isStudent && <th>تعداد ارسال</th>}
                   <th>عملیات</th>
                 </tr>
               </thead>
               <tbody>
-                {assignments.map((a: any) => (
-                  <tr key={a.AssignmentID}>
-                    <td style={{ fontWeight: 600 }}>{a.Title}</td>
-                    <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Description ?? '—'}</td>
-                    <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(a.DueDate)}</td>
-                    <td>{a.MaxScore}</td>
-                    {isStudent && (
+                {assignments.map((a: any) => {
+                  const deadlinePassed = a.DueDate ? new Date(a.DueDate).getTime() < Date.now() : false;
+                  const isGraded = a.Score != null;
+                  const submissionStatus = a.SubmissionStatus;
+                  const canSubmit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Pending' && !deadlinePassed;
+                  const canEdit = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
+                  const canDelete = isStudent && isEnrolledSuccessful && !isGraded && submissionStatus === 'Submitted';
+                  return (
+                    <tr key={a.AssignmentID}>
+                      <td style={{ fontWeight: 600 }}>{a.Title}</td>
+                      <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Description ?? '—'}</td>
+                      <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDateTime(a.DueDate)}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.MaxScore}</td>
+                      {isStudent && (
+                        <td>
+                          <span className={`badge ${
+                            submissionStatus === 'Submitted' ? 'badge-success' :
+                            submissionStatus === 'Missed' ? 'badge-danger' : 'badge-warning'
+                          }`}>
+                            {submissionStatus === 'Submitted' ? 'ارسال شده' : submissionStatus === 'Missed' ? 'ارسال نشده (مهلت گذشته)' : 'در انتظار ارسال'}
+                          </span>
+                        </td>
+                      )}
+                      {isStudent && (
+                        <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                          {a.Score != null ? <strong style={{ color: a.Score >= a.MaxScore/2 ? 'var(--color-success)' : 'var(--color-danger)' }}>{a.Score}/{a.MaxScore}</strong> : '—'}
+                        </td>
+                      )}
+                      {isStudent && (
+                        <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{a.Feedback ?? '—'}</td>
+                      )}
+                      {!isStudent && <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}</td>}
                       <td>
-                        <span className={`badge ${
-                          a.SubmissionStatus === 'Submitted' ? 'badge-success' :
-                          a.SubmissionStatus === 'Missed' ? 'badge-danger' : 'badge-warning'
-                        }`}>
-                          {a.SubmissionStatus === 'Submitted' ? 'ارسال شده' : a.SubmissionStatus === 'Missed' ? 'ارسال نشده' : 'در انتظار ارسال'}
-                        </span>
+                        {isStudent && isEnrolledSuccessful && !isGraded && (
+                          <>
+                            {canSubmit && (
+                              <button className="btn btn-primary btn-sm" onClick={() => openSubmitModal(a)}>
+                                ارسال تکلیف
+                              </button>
+                            )}
+                            {canEdit && (
+                              <button className="btn btn-secondary btn-sm" onClick={() => openSubmitModal(a)}>
+                                ویرایش ارسال
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button className="btn btn-danger btn-sm" onClick={() => handleDeleteSubmission(a.AssignmentID, a.SubmissionID)}>
+                                حذف ارسال
+                              </button>
+                            )}
+                            {!canSubmit && !canEdit && submissionStatus === 'Pending' && deadlinePassed && (
+                              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>مهلت ارسال گذشته است</span>
+                            )}
+                          </>
+                        )}
+                        {isStudent && isGraded && (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>نمره‌دهی شده — قابل ویرایش نیست</span>
+                        )}
+                        {isStudent && submissionStatus === 'Missed' && (
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>مهلت ارسال گذشته است</span>
+                        )}
+                        {!isStudent && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>از تب «تکالیف» نمره‌دهی کنید</span>}
                       </td>
-                    )}
-                    {isStudent && (
-                      <td>{a.Score != null ? <strong>{a.Score}/{a.MaxScore}</strong> : '—'}</td>
-                    )}
-                    {!isStudent && <td>{a.SubmissionCount ?? 0}</td>}
-                    <td>
-                      {isStudent && isEnrolledSuccessful && a.SubmissionStatus !== 'Submitted' && a.SubmissionStatus !== 'Missed' && (
-                        <button className="btn btn-primary btn-sm" onClick={() => { setSubmitModal({ assignmentId: a.AssignmentID, title: a.Title }); setFileUrl(a.SubmissionURL ?? ''); setSubmitError(null); }}>
-                          ارسال تکلیف
-                        </button>
-                      )}
-                      {isStudent && a.SubmissionStatus === 'Submitted' && a.Score == null && (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>منتظر نمره‌دهی</span>
-                      )}
-                      {isStudent && a.SubmissionStatus === 'Missed' && (
-                        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)' }}>مهلت گذشته</span>
-                      )}
-                      {!isStudent && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)' }}>از تب «تکالیف» نمره‌دهی کنید</span>}
-                    </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -331,9 +430,9 @@ export default function CourseDetail({ courseId, onBack }: Props) {
                         {s.EnrollmentStatus}
                       </span>
                     </td>
-                    <td>{s.FinalScore != null ? `${s.FinalScore}/۲۰` : '—'}</td>
-                    <td>{s.ProgressPercent}٪</td>
-                    <td>{s.GPA != null ? s.GPA : '—'}</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{s.FinalScore != null ? `${s.FinalScore}/۲۰` : '—'}</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{s.ProgressPercent}٪</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{s.GPA != null ? s.GPA : '—'}</td>
                     {canManage && (
                       <td>
                         {s.EnrollmentStatus === 'Successful' && (
@@ -358,24 +457,32 @@ export default function CourseDetail({ courseId, onBack }: Props) {
           <button className="btn btn-secondary" onClick={() => setEnrollOpen(false)}>انصراف</button>
         </>}>
         {enrollError && <div className="login-error">{enrollError}</div>}
-        <p>مبلغ قابل پرداخت: <strong style={{ color: 'var(--accent-green)' }}>{formatPrice(course.Price)}</strong></p>
+        <p>مبلغ قابل پرداخت: <strong style={{ color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{formatPrice(course.Price)}</strong></p>
         <div className="form-group">
           <label className="form-label">کد تراکنش (اختیاری)</label>
           <input className="form-input" value={enrollForm.transaction_id} onChange={e => setEnrollForm({ transaction_id: e.target.value })} dir="ltr" placeholder="TXN-..." />
         </div>
       </Modal>
 
-      {/* Submit assignment modal */}
-      <Modal open={!!submitModal} title={`ارسال تکلیف — ${submitModal?.title}`} onClose={() => setSubmitModal(null)}
+      {/* Submit / Edit assignment modal */}
+      <Modal open={!!submitModal} title={`${submitModal?.isEdit ? 'ویرایش ارسال' : 'ارسال تکلیف'} — ${submitModal?.title}`} onClose={() => setSubmitModal(null)}
         footer={<>
-          <button className="btn btn-primary" onClick={handleSubmitAssignment} disabled={submitting || !fileUrl}>{submitting ? 'در حال ارسال...' : 'ارسال'}</button>
+          <button className="btn btn-primary" onClick={handleSubmitAssignment} disabled={submitting || !fileUrl}>{submitting ? 'در حال ارسال...' : (submitModal?.isEdit ? 'به‌روزرسانی' : 'ارسال')}</button>
           <button className="btn btn-secondary" onClick={() => setSubmitModal(null)}>انصراف</button>
         </>}>
         {submitError && <div className="login-error">{submitError}</div>}
         <div className="form-group">
           <label className="form-label">لینک فایل تکلیف *</label>
           <input className="form-input" value={fileUrl} onChange={e => setFileUrl(e.target.value)} dir="ltr" placeholder="https://..." />
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)', marginTop: 4 }}>
+            فایل تکلیف خود را در یک سرویس اشتراک‌گذاری (مثل Google Drive، Dropbox یا هر فضای ابری دیگر) آپلود کرده و لینک عمومی آن را اینجا وارد کنید.
+          </p>
         </div>
+        {submitModal?.isEdit && (
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-warning)' }}>
+            ⚠️ توجه: تا زمانی که نمره‌دهی نشده باشد می‌توانید ارسال خود را ویرایش کنید. پس از نمره‌دهی، امکان ویرایش وجود ندارد.
+          </p>
+        )}
       </Modal>
 
       {/* Attendance modal */}
@@ -387,6 +494,9 @@ export default function CourseDetail({ courseId, onBack }: Props) {
         <div className="form-group">
           <label className="form-label">تاریخ جلسه</label>
           <input className="form-input" type="date" value={attForm.session_date} onChange={e => setAttForm(f => ({ ...f, session_date: e.target.value }))} dir="ltr" />
+          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)', marginTop: 4 }}>
+            تاریخ باید در بازه زمانی دوره ({fmtDate(course.StartDate)} تا {fmtDate(course.EndDate)}) باشد.
+          </p>
         </div>
         <div className="form-group">
           <label className="form-label">وضعیت</label>

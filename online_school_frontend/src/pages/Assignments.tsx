@@ -18,7 +18,11 @@ function Skeleton() {
 
 function fmtDate(d?: string | null) { return d ? new Date(d).toLocaleDateString('fa-IR') : '—'; }
 
-export default function Assignments() {
+interface AssignmentsProps {
+  onOpenCourse?: (courseId: number) => void;
+}
+
+export default function Assignments({ onOpenCourse }: AssignmentsProps) {
   const { isTeacher, isAdmin, isStudent } = useAuth();
   const [tab, setTab] = useState<Tab>(isStudent ? 'assignments' : 'submissions');
   const [filterCourse, setFilterCourse] = useState<number | undefined>(undefined);
@@ -36,13 +40,11 @@ export default function Assignments() {
 
   const { data: courses } = useApi(() => listCourses({ teacher_id: undefined }), []);
 
-  // For teacher: assignments per selected course
   const { data: courseAssignments, loading: caLoading, refetch: refetchAssignments } = useApi(
     () => (filterCourse && (isTeacher || isAdmin)) ? getCourseAssignments(filterCourse) : Promise.resolve([]),
     [filterCourse, isTeacher, isAdmin]
   );
 
-  // For student: my grades (courses + assignments)
   const { data: myGrades, loading: gradesLoading } = useApi(
     () => isStudent ? getMyGrades() : Promise.resolve({ courses: [], assignments: [] }), [isStudent]
   );
@@ -142,9 +144,15 @@ export default function Assignments() {
                   {(grades.courses ?? []).length === 0 ? (
                     <tr><td colSpan={3}><div className="empty-state"><div className="empty-icon">📚</div><h3>دوره‌ای یافت نشد</h3></div></td></tr>
                   ) : grades.courses.map((c: any, i: number) => (
-                    <tr key={i}>
+                    <tr 
+                      key={i}
+                      style={{ cursor: onOpenCourse ? 'pointer' : 'default' }}
+                      onClick={() => onOpenCourse && onOpenCourse(c.CourseID)}
+                    >
                       <td style={{ fontWeight: 600 }}>{c.CourseTitle}</td>
-                      <td>{c.FinalScore != null ? <strong style={{ color: c.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{c.FinalScore}/۲۰</strong> : '—'}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                        {c.FinalScore != null ? <strong style={{ color: c.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{c.FinalScore}/۲۰</strong> : '—'}
+                      </td>
                       <td><span className="badge badge-info">{c.EnrollmentStatus}</span></td>
                     </tr>
                   ))}
@@ -166,11 +174,17 @@ export default function Assignments() {
                   {(grades.assignments ?? []).length === 0 ? (
                     <tr><td colSpan={5}><div className="empty-state"><div className="empty-icon">📝</div><h3>تکلیفی ارسال نشده</h3></div></td></tr>
                   ) : grades.assignments.map((a: any, i: number) => (
-                    <tr key={i}>
+                    <tr 
+                      key={i}
+                      style={{ cursor: onOpenCourse ? 'pointer' : 'default' }}
+                      onClick={() => onOpenCourse && onOpenCourse(a.CourseID)}
+                    >
                       <td style={{ fontWeight: 600 }}>{a.AssignmentTitle}</td>
                       <td style={{ color: 'var(--gray-500)' }}>{a.CourseTitle}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(a.SubmissionDate)}</td>
-                      <td>{a.Score != null ? <strong>{a.Score}/۲۰</strong> : <span className="badge badge-warning">تصحیح نشده</span>}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                        {a.Score != null ? <strong>{a.Score}/۲۰</strong> : <span className="badge badge-warning">تصحیح نشده</span>}
+                      </td>
                       <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Feedback ?? '—'}</td>
                     </tr>
                   ))}
@@ -240,14 +254,10 @@ export default function Assignments() {
                       <td style={{ fontWeight: 600 }}>{s.StudentName ?? s.StudentID}</td>
                       <td style={{ color: 'var(--gray-600)' }}>{s.AssignmentTitle ?? s.AssignmentID}</td>
                       <td style={{ color: 'var(--gray-500)' }}>{s.CourseTitle ?? '—'}</td>
-                      <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                        {fmtDate(s.SubmissionDate)}
-                      </td>
+                      <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{fmtDate(s.SubmissionDate)}</td>
                       <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{fmtDate(s.DueDate)}</td>
-                      <td>
-                        {s.FileURL ? <a href={s.FileURL} target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-xs)' }}>مشاهده فایل</a> : '—'}
-                      </td>
-                      <td>
+                      <td>{s.FileURL ? <a href={s.FileURL} target="_blank" rel="noreferrer" style={{ fontSize: 'var(--text-xs)' }}>مشاهده فایل</a> : '—'}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
                         {s.Score != null
                           ? <strong style={{ color: s.Score >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{s.Score}/{s.MaxScore}</strong>
                           : <span className="badge badge-warning">تصحیح نشده</span>}
@@ -288,8 +298,8 @@ export default function Assignments() {
                       <td style={{ fontWeight: 600 }}>{a.Title}</td>
                       <td style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>{a.Description ?? '—'}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(a.DueDate)}</td>
-                      <td>{a.MaxScore}</td>
-                      <td>{a.SubmissionCount ?? 0}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.MaxScore}</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{a.SubmissionCount ?? 0}</td>
                       {isTeacher && (
                         <td>
                           <div className="flex gap-2">
@@ -315,8 +325,8 @@ export default function Assignments() {
         </>}>
         <div className="form-group">
           <label className="form-label">نمره (۰–۲۰)</label>
-          <input className="form-input" type="number" min={0} max={20} step={0.5}
-            value={gradeForm.score} onChange={e => setGradeForm(f => ({ ...f, score: +e.target.value }))} dir="ltr" />
+          <input className="form-input" type="number" min={0} max={20} step={0.5} dir="ltr"
+            value={gradeForm.score} onChange={e => setGradeForm(f => ({ ...f, score: +e.target.value }))} />
         </div>
         <div className="form-group">
           <label className="form-label">بازخورد</label>

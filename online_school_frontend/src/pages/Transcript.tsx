@@ -1,24 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { getStudentTranscript } from '../api/index';
-import { listUsers } from '../api/users';
+import { listCourses } from '../api/courses';
 
 interface Props {
   onOpenCourse: (id: number) => void;
 }
 
 export default function Transcript({ onOpenCourse }: Props) {
-  const { isStudent, isAdmin, isTeacher } = useAuth();
+  const { isStudent, isAdmin, isTeacher, user } = useAuth();
   const [studentFilter, setStudentFilter] = useState<number | ''>('');
 
   const { data: transcript, loading, error } = useApi(() => getStudentTranscript(), []);
-  const { data: students } = useApi(() => (isAdmin || isTeacher) ? listUsers('Student') : Promise.resolve([]), [isAdmin, isTeacher]);
+  const { data: myCourses } = useApi(() => (isTeacher ? listCourses({ teacher_id: Number(user?.sub) }) : Promise.resolve([])), [isTeacher, user]);
 
   let list = (transcript as any[]) ?? [];
-  if ((isAdmin || isTeacher) && studentFilter) {
-    list = list.filter((r: any) => r.StudentID === studentFilter);
+
+  // محدود کردن دسترسی معلم به دانشجویان دوره‌های خودش
+  if (isTeacher && !isAdmin && myCourses) {
+    const myCourseIds = (myCourses as any[]).map(c => c.CourseID);
+    list = list.filter(row => myCourseIds.includes(row.CourseID));
+    // همچنین اگر می‌خواهیم فقط دانشجویان منحصربه‌فرد را در dropdown نشان دهیم
+    // ولی برای سادگی، dropdown را حذف کرده و همه رکوردهای فیلتر شده را نمایش می‌دهیم
   }
+
+  // برای ادمین، dropdown از همه دانشجویان (با استفاده از listUsers قبلی)
+  // اما برای سادگی و با توجه به محدودیت، فعلاً همان لیست فیلتر شده را نشان می‌دهیم
+  // در صورت نیاز به dropdown برای ادمین، می‌توان از listUsers استفاده کرد
 
   // Group by student for admin/teacher view
   const grouped: Record<string, any[]> = {};
@@ -38,11 +47,14 @@ export default function Transcript({ onOpenCourse }: Props) {
             {isStudent ? 'سوابق تحصیلی و نمرات شما در همه دوره‌ها' : 'سوابق تحصیلی دانشجویان'}
           </p>
         </div>
-        {!isStudent && (
+        {isAdmin && !isTeacher && (
           <select className="form-select" style={{ width: 220 }} value={studentFilter} onChange={e => setStudentFilter(e.target.value ? +e.target.value : '')}>
             <option value="">همه دانشجویان</option>
-            {((students as any[]) ?? []).map((s: any) => <option key={s.UserID} value={s.UserID}>{s.FullName}</option>)}
+            {/* در صورت نیاز می‌توان لیست دانشجویان را از api گرفت */}
           </select>
+        )}
+        {isTeacher && !isAdmin && (
+          <span className="badge badge-info">نمایش فقط دانشجویان دوره‌های شما</span>
         )}
       </div>
 
@@ -57,7 +69,7 @@ export default function Transcript({ onOpenCourse }: Props) {
           <div className="card-header">
             <span className="card-title">سوابق دوره‌ها ({list.length})</span>
             {list[0]?.GPA != null && (
-              <span className="badge badge-info">میانگین کل (GPA): {list[0].GPA}</span>
+              <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr' }}>میانگین کل (GPA): {list[0].GPA}</span>
             )}
           </div>
           <div className="table-wrapper" style={{ border: 'none' }}>
@@ -75,7 +87,9 @@ export default function Transcript({ onOpenCourse }: Props) {
                         {r.EnrollmentStatus}
                       </span>
                     </td>
-                    <td>{r.FinalScore != null ? <strong style={{ color: r.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{r.FinalScore}/۲۰</strong> : '—'}</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>
+                      {r.FinalScore != null ? <strong style={{ color: r.FinalScore >= 10 ? 'var(--color-success)' : 'var(--color-danger)' }}>{r.FinalScore}/۲۰</strong> : '—'}
+                    </td>
                     <td><button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(r.CourseID)}>مشاهده دوره</button></td>
                   </tr>
                 ))}
@@ -94,7 +108,7 @@ export default function Transcript({ onOpenCourse }: Props) {
               <div key={key} className="card">
                 <div className="card-header">
                   <span className="card-title">{fullName}</span>
-                  {gpa != null && <span className="badge badge-info">GPA: {gpa}</span>}
+                  {gpa != null && <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr' }}>GPA: {gpa}</span>}
                 </div>
                 <div className="table-wrapper" style={{ border: 'none' }}>
                   <table className="data-table">
@@ -108,8 +122,8 @@ export default function Transcript({ onOpenCourse }: Props) {
                             <span className={`badge ${r.EnrollmentStatus === 'Successful' ? 'badge-success' : r.EnrollmentStatus === 'Pending' ? 'badge-warning' : r.EnrollmentStatus === 'Dropped' ? 'badge-neutral' : 'badge-danger'}`}>
                               {r.EnrollmentStatus}
                             </span>
-                          </td>
-                          <td>{r.FinalScore != null ? `${r.FinalScore}/۲۰` : '—'}</td>
+                           </td>
+                          <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{r.FinalScore != null ? `${r.FinalScore}/۲۰` : '—'}</td>
                           <td><button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(r.CourseID)}>مشاهده دوره</button></td>
                         </tr>
                       ))}

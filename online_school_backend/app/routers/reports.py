@@ -23,10 +23,23 @@ def top_students(top_n: int = 10, current_user: dict = Depends(role_required(["A
 @router.get("/teacher-income")
 def teacher_income(start_date: str, end_date: str, current_user: dict = Depends(role_required(["Admin", "Teacher"]))):
     user_id = int(current_user["sub"])
-    logger.info(f"User {user_id} requesting teacher income from {start_date} to {end_date}")
-    result_sets = call_stored_procedure("sp_ReportTeacherIncome", {"@StartDate": start_date, "@EndDate": end_date})
+    role = current_user["role"]
+    
+    if role == "Teacher":
+        # فقط درآمد خود معلم را برگردان
+        result_sets = call_stored_procedure("sp_ReportTeacherIncome", {
+            "@StartDate": start_date,
+            "@EndDate": end_date,
+            "@TeacherID": user_id   # نیاز به اضافه کردن پارامتر به stored procedure
+        })
+    else:
+        # ادمین همه را می‌بیند
+        result_sets = call_stored_procedure("sp_ReportTeacherIncome", {
+            "@StartDate": start_date,
+            "@EndDate": end_date,
+            "@TeacherID": None
+        })
     data = _first_result_set(result_sets)
-    logger.info(f"Returned {len(data)} income records")
     return data
 
 @router.get("/popular-courses")

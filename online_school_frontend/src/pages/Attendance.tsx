@@ -3,7 +3,7 @@ import { attendanceBadge } from '../components/ui/Badge';
 import { useApi } from '../hooks/useApi';
 import { useAuth } from '../context/AuthContext';
 import { reportAttendance } from '../api/index';
-import { listCourses } from '../api/courses';
+import { getStudentTranscript } from '../api/index';
 
 export default function Attendance() {
   const { user, isTeacher, isAdmin, isStudent } = useAuth();
@@ -11,7 +11,17 @@ export default function Attendance() {
   const [studentId, setStudentId] = useState<number>(user ? parseInt(user.sub) : 0);
   const [searched, setSearched] = useState(false);
 
-  const { data: courses } = useApi(() => listCourses(), []);
+  // برای دانشجو: دریافت دوره‌هایی که ثبت‌نام موفق دارد
+  const { data: transcript } = useApi(() => isStudent ? getStudentTranscript() : Promise.resolve([]), [isStudent]);
+  const enrolledCourses = (transcript as any[])
+    ?.filter((e: any) => e.EnrollmentStatus === 'Successful')
+    .map((e: any) => ({ CourseID: e.CourseID, Title: e.CourseTitle })) ?? [];
+
+  // برای استاد/ادمین: همه دوره‌ها (دسترسی قبلی)
+  const { data: allCourses } = useApi(() => (isTeacher || isAdmin) ? listCourses() : Promise.resolve([]), [isTeacher, isAdmin]);
+  
+  const courseList = isStudent ? enrolledCourses : (allCourses as any[]) ?? [];
+
   const { data: records, loading, error } = useApi(
     () => (searched && courseId && studentId) ? reportAttendance(studentId, courseId) : Promise.resolve([]),
     [searched, courseId, studentId]
@@ -39,7 +49,7 @@ export default function Attendance() {
             <label className="form-label">دوره</label>
             <select className="form-select" value={courseId} onChange={e => setCourseId(+e.target.value)}>
               <option value={0}>انتخاب کنید...</option>
-              {(courses ?? []).map((c: any) => <option key={c.CourseID} value={c.CourseID}>{c.Title}</option>)}
+              {courseList.map((c: any) => <option key={c.CourseID} value={c.CourseID}>{c.Title}</option>)}
             </select>
           </div>
           {(isAdmin || isTeacher) && (
@@ -58,13 +68,13 @@ export default function Attendance() {
         <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-5)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 'var(--text-3xl)', fontWeight: 800, color: 'var(--brand-600)' }}>{pct}٪</div>
+              <div style={{ fontSize: 'var(--text-3xl)', fontWeight: 800, color: 'var(--brand-600)', fontFamily: 'monospace', direction: 'ltr' }}>{pct}٪</div>
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>درصد حضور</div>
             </div>
             <div style={{ flex: 1, minWidth: 200 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 'var(--text-sm)' }}>
-                <span>حاضر: <strong style={{ color: 'var(--color-success)' }}>{presentCount}</strong></span>
-                <span>غایب: <strong style={{ color: 'var(--color-danger)' }}>{list.length - presentCount}</strong></span>
+                <span>حاضر: <strong style={{ color: 'var(--color-success)', fontFamily: 'monospace', direction: 'ltr' }}>{presentCount}</strong></span>
+                <span>غایب: <strong style={{ color: 'var(--color-danger)', fontFamily: 'monospace', direction: 'ltr' }}>{list.length - presentCount}</strong></span>
               </div>
               <div style={{ height: 8, background: 'var(--gray-100)', borderRadius: 99, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${pct}%`, background: 'var(--color-success)', borderRadius: 99, transition: 'width 0.4s ease' }} />
@@ -99,7 +109,7 @@ export default function Attendance() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+            </table>
             </div>
           )}
         </div>
@@ -117,3 +127,6 @@ export default function Attendance() {
     </div>
   );
 }
+
+// نیاز به import در ابتدا
+import { listCourses } from '../api/courses';

@@ -7,12 +7,15 @@ import { useApi } from '../hooks/useApi';
 
 function fmtDate(d?: string | null) { return d ? new Date(d).toLocaleDateString('fa-IR') : '—'; }
 
-export default function Announcements() {
+interface AnnouncementsProps {
+  onOpenCourse?: (courseId: number) => void;
+}
+
+export default function Announcements({ onOpenCourse }: AnnouncementsProps) {
   const { isStudent, isTeacher, isAdmin, user } = useAuth();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Determine relevant course list per role
   const { data: allCourses } = useApi(() => listCourses(), []);
   const { data: transcript } = useApi(() => isStudent ? getStudentTranscript() : Promise.resolve([]), [isStudent]);
 
@@ -39,7 +42,7 @@ export default function Announcements() {
     Promise.all(
       courseIds.map(c =>
         getCourseAnnouncements(c.id)
-          .then((anns: any[]) => anns.map(a => ({ ...a, _courseTitle: c.title })))
+          .then((anns: any[]) => anns.map(a => ({ ...a, _courseId: c.id, _courseTitle: c.title })))
           .catch(() => [])
       )
     ).then(results => {
@@ -68,7 +71,11 @@ export default function Announcements() {
           ) : items.length === 0 ? (
             <div className="empty-state"><div className="empty-icon">📢</div><h3>اطلاعیه‌ای موجود نیست</h3></div>
           ) : items.map((a: any) => (
-            <div key={`${a.AnnouncementID}-${a._courseTitle}`} style={{ padding: 'var(--space-4)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)' }}>
+            <div
+              key={`${a.AnnouncementID}-${a._courseTitle}`}
+              style={{ padding: 'var(--space-4)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', cursor: onOpenCourse ? 'pointer' : 'default' }}
+              onClick={() => onOpenCourse && a._courseId && onOpenCourse(a._courseId)}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
                 <div style={{ fontWeight: 700 }}>{a.Title}</div>
                 <span className="badge badge-info">{a._courseTitle}</span>

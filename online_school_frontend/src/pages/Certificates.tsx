@@ -5,7 +5,11 @@ import { listCourses } from '../api/courses';
 import { useState } from 'react';
 import { ApiError } from '../api/client';
 
-export default function Certificates() {
+interface CertificatesProps {
+  onOpenCourse?: (courseId: number) => void;
+}
+
+export default function Certificates({ onOpenCourse }: CertificatesProps) {
   const { isAdmin, isTeacher, isStudent } = useAuth();
   const { data: certs, loading, error, refetch } = useApi(() => getStudentCertificates(), []);
   const { data: courses } = useApi(() => listCourses({ status: 'Completed' }), []);
@@ -61,7 +65,12 @@ export default function Certificates() {
       {!loading && list.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 'var(--space-5)', marginBottom: 'var(--space-6)' }}>
           {list.slice(0, 6).map((c: any, i: number) => (
-            <div key={c.CertificateID ?? i} className="card" style={{ padding: 'var(--space-5)', position: 'relative', overflow: 'hidden' }}>
+            <div
+              key={c.CertificateID ?? i}
+              className="card"
+              style={{ padding: 'var(--space-5)', position: 'relative', overflow: 'hidden', cursor: onOpenCourse ? 'pointer' : 'default' }}
+              onClick={() => onOpenCourse && onOpenCourse(c.CourseID)}
+            >
               <div style={{ position: 'absolute', top: -20, left: -20, width: 100, height: 100, borderRadius: '50%', background: 'var(--accent-amber-bg)', opacity: 0.6 }} />
               <div style={{ position: 'relative' }}>
                 <div style={{ fontSize: '2rem', marginBottom: 'var(--space-3)' }}>🏆</div>
@@ -101,15 +110,11 @@ export default function Certificates() {
                 {list.length === 0 ? (
                   <tr><td colSpan={isStudent ? 3 : 4}><div className="empty-state"><div className="empty-icon">🏆</div><h3>گواهی‌ای صادر نشده</h3></div></td></tr>
                 ) : list.map((c: any, i: number) => (
-                  <tr key={c.CertificateID ?? i}>
+                  <tr key={c.CertificateID ?? i} style={{ cursor: onOpenCourse ? 'pointer' : 'default' }} onClick={() => onOpenCourse && onOpenCourse(c.CourseID)}>
                     {!isStudent && <td style={{ fontWeight: 600 }}>{c.StudentName ?? c.StudentID}</td>}
                     <td style={{ color: 'var(--gray-600)' }}>{c.CourseTitle ?? c.CourseID}</td>
-                    <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
-                      {c.IssueDate ? new Date(c.IssueDate).toLocaleDateString('fa-IR') : '—'}
-                    </td>
-                    <td style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)', direction: 'ltr', textAlign: 'right', color: 'var(--brand-600)' }}>
-                      {c.CertificateCode}
-                    </td>
+                    <td style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>{c.IssueDate ? new Date(c.IssueDate).toLocaleDateString('fa-IR') : '—'}</td>
+                    <td style={{ fontSize: 'var(--text-xs)', fontFamily: 'var(--font-mono)', direction: 'ltr', color: 'var(--brand-600)' }}>{c.CertificateCode}</td>
                   </tr>
                 ))}
               </tbody>

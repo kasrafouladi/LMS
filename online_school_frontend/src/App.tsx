@@ -43,13 +43,13 @@ function AppContent() {
           ? <CourseDetail courseId={selectedCourseId} onBack={() => setSelectedCourseId(null)} />
           : <Courses onOpenCourse={openCourse} />;
       case 'enrollments':  return <Enrollments onOpenCourse={openCourse} />;
-      case 'assignments':  return <Assignments />;
+      case 'assignments':  return <Assignments onOpenCourse={openCourse} />;
       case 'payments':     return <Payments />;
       case 'attendance':   return <Attendance />;
-      case 'certificates': return <Certificates />;
+      case 'certificates': return <Certificates onOpenCourse={openCourse} />;
       case 'transcript':   return <Transcript onOpenCourse={openCourse} />;
-      case 'announcements':return <Announcements />;
-      case 'reports':      return <Reports />;
+      case 'announcements':return <Announcements onOpenCourse={openCourse} />;
+      case 'reports':      return <Reports onOpenCourse={openCourse} />;
       default:             return <Dashboard onOpenCourse={openCourse} />;
     }
   }
@@ -77,12 +77,12 @@ export default function App() {
   }
 
   if (!user) {
-  return authView === 'login'
-    ? <LoginPage onShowRegister={() => setAuthView('register')} />
-    : <RegisterPage
-        onSuccess={() => setAuthView('login')}
-        onBackToLogin={() => setAuthView('login')}
-      />;
+    return authView === 'login'
+      ? <LoginPage onShowRegister={() => setAuthView('register')} />
+      : <RegisterPage
+          onSuccess={() => setAuthView('login')}
+          onBackToLogin={() => setAuthView('login')}
+        />;
   }
 
   return <AppContent />;

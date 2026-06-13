@@ -9,7 +9,8 @@ import {
 
 type ReportKey =
   | 'top-students' | 'teacher-income' | 'popular-courses' | 'course-enrollments'
-  | 'inactive-students' | 'failed-payments' | 'course-grades' | 'monthly-income' | 'teacher-ranking';
+  | 'inactive-students' | 'failed-payments' | 'course-grades' | 'monthly-income'
+  | 'teacher-ranking';
 
 function fmtDate(d?: string | null) { return d ? new Date(d).toLocaleDateString('fa-IR') : '—'; }
 function fmtMoney(n?: number) { return (n ?? 0).toLocaleString('fa-IR') + ' ت'; }
@@ -17,33 +18,38 @@ function fmtMoney(n?: number) { return (n ?? 0).toLocaleString('fa-IR') + ' ت';
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const yearAgoISO = () => { const d = new Date(); d.setFullYear(d.getFullYear() - 1); return d.toISOString().slice(0, 10); };
 
-export default function Reports() {
-  const { isAdmin, isTeacher } = useAuth();
-  const [active, setActive] = useState<ReportKey>('popular-courses');
+interface ReportsProps {
+  onOpenCourse?: (courseId: number) => void;
+}
 
-  // shared params
+export default function Reports({ onOpenCourse }: ReportsProps) {
+  const { isAdmin, isTeacher } = useAuth();
+
+  const REPORTS: { key: ReportKey; label: string; roles: ('Admin'|'Teacher'|'Student')[] }[] = [
+    { key: 'popular-courses',   label: 'پرطرفدارترین دوره‌ها',   roles: ['Admin', 'Teacher', 'Student'] },
+    { key: 'top-students',      label: 'برترین دانشجویان',       roles: ['Admin', 'Teacher', 'Student'] },
+    { key: 'course-grades',     label: 'آمار نمرات دوره',         roles: ['Admin', 'Teacher', 'Student'] },
+    { key: 'course-enrollments',label: 'آمار ثبت‌نام دوره‌ها',     roles: ['Admin', 'Teacher'] },
+    { key: 'teacher-income',    label: 'درآمد مدرسان',           roles: ['Admin', 'Teacher'] },
+    { key: 'teacher-ranking',   label: 'رتبه‌بندی مدرسان',        roles: ['Admin'] },
+    { key: 'inactive-students', label: 'دانشجویان غیرفعال',      roles: ['Admin'] },
+    { key: 'failed-payments',   label: 'پرداخت‌های ناموفق',       roles: ['Admin'] },
+    { key: 'monthly-income',    label: 'درآمد ماهانه',           roles: ['Admin'] },
+  ];
+
+  const myRole: 'Admin' | 'Teacher' | 'Student' = isAdmin ? 'Admin' : isTeacher ? 'Teacher' : 'Student';
+  const visibleReports = REPORTS.filter(r => r.roles.includes(myRole));
+
+  const [active, setActive] = useState<ReportKey>(visibleReports[0]?.key ?? 'popular-courses');
+
   const [startDate, setStartDate] = useState(yearAgoISO());
   const [endDate, setEndDate] = useState(todayISO());
   const [topN, setTopN] = useState(10);
   const [days, setDays] = useState(60);
   const [year, setYear] = useState(new Date().getFullYear());
   const [basis, setBasis] = useState('Income');
+  const [courseId, setCourseId] = useState<number | ''>('');
 
-  const REPORTS: { key: ReportKey; label: string; roles: ('Admin'|'Teacher')[] }[] = [
-    { key: 'popular-courses', label: 'پرطرفدارترین دوره‌ها', roles: ['Admin', 'Teacher'] },
-    { key: 'top-students', label: 'برترین دانشجویان', roles: ['Admin', 'Teacher'] },
-    { key: 'course-enrollments', label: 'آمار ثبت‌نام دوره‌ها', roles: ['Admin', 'Teacher'] },
-    { key: 'course-grades', label: 'آمار نمرات دوره', roles: ['Admin', 'Teacher'] },
-    { key: 'teacher-income', label: 'درآمد مدرسان', roles: ['Admin', 'Teacher'] },
-    { key: 'teacher-ranking', label: 'رتبه‌بندی مدرسان', roles: ['Admin'] },
-    { key: 'inactive-students', label: 'دانشجویان غیرفعال', roles: ['Admin'] },
-    { key: 'failed-payments', label: 'پرداخت‌های ناموفق', roles: ['Admin'] },
-    { key: 'monthly-income', label: 'درآمد ماهانه', roles: ['Admin'] },
-  ];
-
-  const visibleReports = REPORTS.filter(r => (isAdmin ? r.roles.includes('Admin') : r.roles.includes('Teacher')));
-
-  // Fetch data based on active report
   const { data, loading, error } = useApi(() => {
     switch (active) {
       case 'top-students': return reportTopStudents(topN);
@@ -52,14 +58,16 @@ export default function Reports() {
       case 'course-enrollments': return reportCourseEnrollments();
       case 'inactive-students': return reportInactiveStudents(days);
       case 'failed-payments': return reportFailedPayments(startDate, endDate);
-      case 'course-grades': return reportCourseGrades();
+      case 'course-grades': return reportCourseGrades(courseId === '' ? undefined : courseId);
       case 'monthly-income': return reportMonthlyIncome(year);
       case 'teacher-ranking': return reportTeacherRanking(basis);
       default: return Promise.resolve([]);
     }
-  }, [active, startDate, endDate, topN, days, year, basis]);
+  }, [active, startDate, endDate, topN, days, year, basis, courseId]);
 
   const list = (data as any[]) ?? [];
+
+  const showsParams = ['top-students','course-grades','teacher-income','failed-payments','inactive-students','monthly-income','teacher-ranking'].includes(active);
 
   return (
     <div>
@@ -78,13 +86,18 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Parameter controls */}
       <div className="card" style={{ marginBottom: 'var(--space-5)', padding: 'var(--space-5)' }}>
         <div style={{ display: 'flex', gap: 'var(--space-4)', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           {active === 'top-students' && (
             <div className="form-group">
               <label className="form-label">تعداد</label>
               <input className="form-input" type="number" min={1} max={50} value={topN} onChange={e => setTopN(+e.target.value)} dir="ltr" style={{ width: 100 }} />
+            </div>
+          )}
+          {active === 'course-grades' && (
+            <div className="form-group">
+              <label className="form-label">شناسه دوره (اختیاری)</label>
+              <input className="form-input" type="number" value={courseId} onChange={e => setCourseId(e.target.value ? +e.target.value : '')} dir="ltr" style={{ width: 140 }} placeholder="همه دوره‌ها" />
             </div>
           )}
           {(active === 'teacher-income' || active === 'failed-payments') && (
@@ -121,6 +134,9 @@ export default function Reports() {
               </select>
             </div>
           )}
+          {!showsParams && (
+            <p style={{ color: 'var(--gray-400)', fontSize: 'var(--text-sm)' }}>این گزارش بدون پارامتر اضافی نمایش داده می‌شود.</p>
+          )}
         </div>
       </div>
 
@@ -146,11 +162,19 @@ export default function Reports() {
               </thead>
               <tbody>
                 {list.map((row: any, i: number) => (
-                  <tr key={i}>
+                  <tr 
+                    key={i}
+                    style={{ cursor: onOpenCourse && row.CourseID ? 'pointer' : 'default' }}
+                    onClick={() => {
+                      if (onOpenCourse && row.CourseID) onOpenCourse(row.CourseID);
+                    }}
+                  >
                     {Object.entries(row).map(([key, val], j) => (
                       <td key={j}>
                         {typeof val === 'number' && /amount|income|score|gpa/i.test(key)
-                          ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('income') ? fmtMoney(val as number) : (val as number))
+                          ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('income') 
+                              ? fmtMoney(val as number) 
+                              : <span style={{ fontFamily: 'monospace', direction: 'ltr' }}>{(val as number).toFixed(2)}</span>)
                           : /date/i.test(key) && typeof val === 'string'
                             ? fmtDate(val)
                             : (val == null ? '—' : String(val))}

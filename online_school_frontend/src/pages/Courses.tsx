@@ -168,21 +168,21 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
                     ? Math.round((c.EnrolledCount / c.Capacity) * 100) : 0;
                   const canEdit = isAdmin || (isTeacher && c.TeacherID != null);
                   return (
-                    <tr key={c.CourseID}>
+                    <tr key={c.CourseID} style={{ cursor: 'pointer' }} onClick={() => onOpenCourse(c.CourseID)}>
                       <td>
                         <div style={{ fontWeight: 600 }}>{c.Title}</div>
                         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)', marginTop: 2 }}>{c.Description}</div>
                       </td>
                       <td>{c.TeacherName ?? '—'}</td>
-                      <td style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{formatPrice(c.Price)}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{formatPrice(c.Price)}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{c.StartDate?.slice(0,10)}</td>
                       <td style={{ fontSize: 'var(--text-xs)' }}>{c.EndDate?.slice(0,10)}</td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <div style={{ width: 50, height: 5, background: 'var(--gray-100)', borderRadius: 99, overflow: 'hidden' }}>
-                            <div style={{ height: '100%', width: `${pct}%`, background: pct > 85 ? 'var(--color-warning)' : 'var(--brand-500)', borderRadius: 99 }} />
+                            <div className="progress-fill" style={{ width: `${pct}%`, height: '100%', background: pct > 85 ? 'var(--color-warning)' : 'var(--brand-500)' }} />
                           </div>
-                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)' }}>
+                          <span style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-500)', fontFamily: 'monospace', direction: 'ltr' }}>
                             {c.EnrolledCount ?? 0}/{c.Capacity}
                           </span>
                         </div>
@@ -197,12 +197,12 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
                       </td>
                       <td>
                         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                          <button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(c.CourseID)}>جزئیات</button>
+                          <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); onOpenCourse(c.CourseID); }}>جزئیات</button>
                           {canEdit && (
-                            <button className="btn btn-secondary btn-sm" onClick={() => openEdit(c)}>ویرایش</button>
+                            <button className="btn btn-secondary btn-sm" onClick={(e) => { e.stopPropagation(); openEdit(c); }}>ویرایش</button>
                           )}
                           {canEdit && (
-                            <button className="btn btn-danger btn-sm" onClick={() => handleDelete(c.CourseID)}>حذف</button>
+                            <button className="btn btn-danger btn-sm" onClick={(e) => { e.stopPropagation(); handleDelete(c.CourseID); }}>حذف</button>
                           )}
                         </div>
                       </td>
@@ -227,6 +227,7 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
         </>}
       >
         {saveError && <div className="login-error">{saveError}</div>}
+        {/* فرم مشابه قبل */}
         <div className="form-group">
           <label className="form-label">عنوان دوره *</label>
           <input className="form-input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
@@ -259,9 +260,6 @@ export default function Courses({ onOpenCourse }: CoursesProps) {
             <select className="form-select" value={statusForm} onChange={e => setStatusForm(e.target.value)}>
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
-            <p style={{ fontSize: 'var(--text-xs)', color: 'var(--gray-400)', marginTop: 4 }}>
-              توجه: تغییر وضعیت طبق روند منطقی مجاز است (مثلاً Draft → Upcoming → Active → Completed/Cancelled)
-            </p>
           </div>
         )}
       </Modal>

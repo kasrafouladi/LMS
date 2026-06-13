@@ -24,11 +24,11 @@ export default function Enrollments({ onOpenCourse }: Props) {
   const myEnrollments = (transcript as any[]) ?? [];
   const enrolledCourseIds = new Set(myEnrollments.map((e: any) => e.CourseID));
   const availableCourses = ((upcomingCourses as any[]) ?? []).filter(c => !enrolledCourseIds.has(c.CourseID));
+  const overallGPA = myEnrollments[0]?.GPA;
 
   async function handleCancel(enrollmentId: number) {
     if (!confirm('ثبت‌نام لغو شود؟ مبلغ پرداختی به صورت بازگشتی ثبت می‌شود.')) return;
     try {
-      // We need EnrollmentID from transcript view; cancel endpoint uses EnrollmentID
       await cancelEnrollment(enrollmentId);
       refetchTranscript();
     } catch (err) {
@@ -51,6 +51,9 @@ export default function Enrollments({ onOpenCourse }: Props) {
           <span className="card-title">
             {tLoad ? 'در حال بارگذاری...' : `دوره‌های من (${myEnrollments.length})`}
           </span>
+          {overallGPA != null && (
+            <span className="badge badge-info" style={{ fontFamily: 'monospace', direction: 'ltr' }}>GPA کلی: {overallGPA}</span>
+          )}
         </div>
         {tLoad ? (
           <div style={{ padding: 'var(--space-5)', display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -62,7 +65,9 @@ export default function Enrollments({ onOpenCourse }: Props) {
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table className="data-table">
               <thead>
-                <tr><th>دوره</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th><th>نمره نهایی</th><th>GPA</th><th>عملیات</th></tr>
+                <tr>
+                  <th>دوره</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th><th>نمره نهایی</th><th>عملیات</th>
+                </table>
               </thead>
               <tbody>
                 {myEnrollments.map((e: any, i: number) => (
@@ -74,10 +79,14 @@ export default function Enrollments({ onOpenCourse }: Props) {
                         {e.EnrollmentStatus}
                       </span>
                     </td>
-                    <td>{e.FinalScore != null ? `${e.FinalScore}/۲۰` : '—'}</td>
-                    <td>{e.GPA ?? '—'}</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{e.FinalScore != null ? `${e.FinalScore}/۲۰` : '—'}</td>
                     <td>
-                      <button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(e.CourseID)}>مشاهده دوره</button>
+                      <div className="flex gap-2">
+                        <button className="btn btn-secondary btn-sm" onClick={() => onOpenCourse(e.CourseID)}>مشاهده دوره</button>
+                        {(e.EnrollmentStatus === 'Successful' || e.EnrollmentStatus === 'Pending') && (
+                          <button className="btn btn-danger btn-sm" onClick={() => handleCancel(e.EnrollmentID)}>لغو ثبت‌نام</button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -102,7 +111,9 @@ export default function Enrollments({ onOpenCourse }: Props) {
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table className="data-table">
               <thead>
-                <tr><th>عنوان</th><th>مدرس</th><th>قیمت</th><th>ظرفیت</th><th>تاریخ شروع</th><th>عملیات</th></tr>
+                <tr>
+                  <th>عنوان</th><th>مدرس</th><th>قیمت</th><th>ظرفیت</th><th>تاریخ شروع</th><th>عملیات</th>
+                </tr>
               </thead>
               <tbody>
                 {availableCourses.length === 0 ? (
@@ -111,8 +122,8 @@ export default function Enrollments({ onOpenCourse }: Props) {
                   <tr key={c.CourseID}>
                     <td style={{ fontWeight: 600 }}>{c.Title}</td>
                     <td>{c.TeacherName ?? '—'}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--accent-green)' }}>{(c.Price ?? 0).toLocaleString('fa-IR')} ت</td>
-                    <td style={{ color: 'var(--gray-500)' }}>{c.EnrolledCount ?? 0}/{c.Capacity}</td>
+                    <td style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{(c.Price ?? 0).toLocaleString('fa-IR')} ت</td>
+                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{c.EnrolledCount ?? 0}/{c.Capacity}</td>
                     <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(c.StartDate)}</td>
                     <td>
                       <button className="btn btn-primary btn-sm" onClick={() => onOpenCourse(c.CourseID)}>مشاهده و ثبت‌نام</button>

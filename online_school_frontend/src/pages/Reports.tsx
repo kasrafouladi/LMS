@@ -69,6 +69,14 @@ export default function Reports({ onOpenCourse }: ReportsProps) {
 
   const showsParams = ['top-students','course-grades','teacher-income','failed-payments','inactive-students','monthly-income','teacher-ranking'].includes(active);
 
+  // تابع کمکی برای فیلتر کردن کلیدهای ناخواسته (مثلاً MEDIAN Score)
+  const isKeyToExclude = (key: string): boolean => {
+    return /median/i.test(key); // حذف هر کلیدی که شامل "median" باشد (بدون توجه به حروف بزرگ/کوچک)
+  };
+
+  // اگر لیست خالی نباشد، کلیدهای مجاز را استخراج می‌کنیم
+  const allowedKeys = list.length > 0 ? Object.keys(list[0]).filter(key => !isKeyToExclude(key)) : [];
+
   return (
     <div>
       <div className="page-header">
@@ -157,7 +165,7 @@ export default function Reports({ onOpenCourse }: ReportsProps) {
             <table className="data-table">
               <thead>
                 <tr>
-                  {Object.keys(list[0]).map(key => <th key={key}>{key}</th>)}
+                  {allowedKeys.map(key => <th key={key}>{key}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -169,17 +177,20 @@ export default function Reports({ onOpenCourse }: ReportsProps) {
                       if (onOpenCourse && row.CourseID) onOpenCourse(row.CourseID);
                     }}
                   >
-                    {Object.entries(row).map(([key, val], j) => (
-                      <td key={j}>
-                        {typeof val === 'number' && /amount|income|score|gpa/i.test(key)
-                          ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('income') 
-                              ? fmtMoney(val as number) 
-                              : <span style={{ fontFamily: 'monospace', direction: 'ltr' }}>{(val as number).toFixed(2)}</span>)
-                          : /date/i.test(key) && typeof val === 'string'
-                            ? fmtDate(val)
-                            : (val == null ? '—' : String(val))}
-                      </td>
-                    ))}
+                    {allowedKeys.map(key => {
+                      const val = row[key];
+                      return (
+                        <td key={key}>
+                          {typeof val === 'number' && /amount|income|score|gpa/i.test(key)
+                            ? (key.toLowerCase().includes('amount') || key.toLowerCase().includes('income') 
+                                ? fmtMoney(val as number) 
+                                : <span style={{ fontFamily: 'monospace', direction: 'ltr' }}>{(val as number).toFixed(2)}</span>)
+                            : /date/i.test(key) && typeof val === 'string'
+                              ? fmtDate(val)
+                              : (val == null ? '—' : String(val))}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

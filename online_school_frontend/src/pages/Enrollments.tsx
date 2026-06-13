@@ -67,7 +67,7 @@ export default function Enrollments({ onOpenCourse }: Props) {
               <thead>
                 <tr>
                   <th>دوره</th><th>تاریخ ثبت‌نام</th><th>وضعیت</th><th>نمره نهایی</th><th>عملیات</th>
-                </table>
+                </tr>
               </thead>
               <tbody>
                 {myEnrollments.map((e: any, i: number) => (
@@ -75,7 +75,11 @@ export default function Enrollments({ onOpenCourse }: Props) {
                     <td style={{ fontWeight: 600 }}>{e.CourseTitle}</td>
                     <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(e.EnrollmentDate)}</td>
                     <td>
-                      <span className={`badge ${e.EnrollmentStatus === 'Successful' ? 'badge-success' : e.EnrollmentStatus === 'Pending' ? 'badge-warning' : e.EnrollmentStatus === 'Dropped' ? 'badge-neutral' : 'badge-danger'}`}>
+                      <span className={`badge ${
+                        e.EnrollmentStatus === 'Successful' ? 'badge-success' :
+                        e.EnrollmentStatus === 'Pending' ? 'badge-warning' :
+                        e.EnrollmentStatus === 'Dropped' ? 'badge-neutral' : 'badge-danger'
+                      }`}>
                         {e.EnrollmentStatus}
                       </span>
                     </td>
@@ -118,18 +122,20 @@ export default function Enrollments({ onOpenCourse }: Props) {
               <tbody>
                 {availableCourses.length === 0 ? (
                   <tr><td colSpan={6}><div className="empty-state"><div className="empty-icon">📚</div><h3>دوره قابل ثبت‌نامی موجود نیست</h3></div></td></tr>
-                ) : availableCourses.map((c: any) => (
-                  <tr key={c.CourseID}>
-                    <td style={{ fontWeight: 600 }}>{c.Title}</td>
-                    <td>{c.TeacherName ?? '—'}</td>
-                    <td style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{(c.Price ?? 0).toLocaleString('fa-IR')} ت</td>
-                    <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{c.EnrolledCount ?? 0}/{c.Capacity}</td>
-                    <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(c.StartDate)}</td>
-                    <td>
-                      <button className="btn btn-primary btn-sm" onClick={() => onOpenCourse(c.CourseID)}>مشاهده و ثبت‌نام</button>
-                    </td>
-                  </tr>
-                ))}
+                ) : (
+                  availableCourses.map((c: any) => (
+                    <tr key={c.CourseID}>
+                      <td style={{ fontWeight: 600 }}>{c.Title}</td>
+                      <td>{c.TeacherName ?? '—'}</td>
+                      <td style={{ fontWeight: 700, color: 'var(--accent-green)', fontFamily: 'monospace', direction: 'ltr' }}>{(c.Price ?? 0).toLocaleString('fa-IR')} ت</td>
+                      <td style={{ fontFamily: 'monospace', direction: 'ltr' }}>{c.EnrolledCount ?? 0}/{c.Capacity}</td>
+                      <td style={{ fontSize: 'var(--text-xs)' }}>{fmtDate(c.StartDate)}</td>
+                      <td>
+                        <button className="btn btn-primary btn-sm" onClick={() => onOpenCourse(c.CourseID)}>مشاهده و ثبت‌نام</button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
